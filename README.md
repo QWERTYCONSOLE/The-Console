@@ -9,3 +9,4 @@ on this device accept for the full experience. accepting adds 3 commands:
 just means without HTML it wouldnt be there
 created 10/30/2026 3:43AM Pacific Standard Time: 00b912a9.the-terminal-web.pages.dev’s DNS address could not be found. Diagnosing the problem. that means no
 happiness :( i will try to fix it
+ok we may have to make a new domain
