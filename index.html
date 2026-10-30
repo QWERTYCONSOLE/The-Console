@@ -3,9 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
     <title>Super Terminal</title>
     <style>
-
+        body {
+            background-color: #0d0d0d;
+            margin: 0;
+            overflow: hidden;
+        }
     </style>
 </head>
 <body>
@@ -52,14 +57,15 @@
 
             let container = document.createElement('div');
             container.id = 'retro-console-root';
-            // FIX 1: Added text-align: left to the main container override
+            
+            // FIX: Semi-transparent black so Matrix rain shows through
             container.style.cssText = `
               position: fixed;
               top: 0;
               left: 0;
               width: 100vw;
               height: 100vh;
-              background-color: #0d0d0d; /* FIX: Solid black */
+              background-color: rgba(0, 0, 0, 0.7); 
               color: #00ff66;
               font-family: 'Courier New', Courier, monospace;
               font-size: 1rem;
@@ -71,7 +77,6 @@
               text-align: left;
             `;
 
-            // FIX 2: Added text-align: left to the output div and input area
             container.innerHTML = `
               <div id="output" style="white-space: pre-wrap; margin-bottom: 10px; text-align: left;">&lt;Console&gt; In-page system initialized. Enter "help" for commands</div>
               <div class="input-line" style="display: flex; align-items: flex-start; margin-top: 10px; text-align: left;">
@@ -156,7 +161,7 @@
                 left: 0;
                 width: 100vw;
                 height: 100vh;
-                z-index: 1;
+                z-index: 1; 
                 opacity: 0.9;
                 pointer-events: none;
                 display: none;
@@ -230,7 +235,7 @@
             function writeLine(text) {
               const line = document.createElement('div');
               line.style.whiteSpace = 'pre-wrap';
-              line.style.textAlign = 'left'; // FIX 3: Force every new line to align left
+              line.style.textAlign = 'left';
               line.textContent = text;
               output.appendChild(line);
               return line;
@@ -927,7 +932,7 @@
                       let displayResult = typeof evalResult === 'object' ? JSON.stringify(evalResult, null, 2) : String(evalResult);
                       const line = document.createElement('div');
                       line.style.whiteSpace = 'pre-wrap';
-                      line.style.textAlign = 'left'; // Force left alignment
+                      line.style.textAlign = 'left'; 
                       line.innerHTML = '<span style="color: #00ff66;">&lt;Console&gt; [Result]:</span><br>' + highlightCode(String(evalResult), 'js');
                       output.appendChild(line);
                     } else {
@@ -963,7 +968,7 @@
                     
                     const line = document.createElement('div');
                     line.style.whiteSpace = 'pre-wrap';
-                    line.style.textAlign = 'left'; // Force left alignment
+                    line.style.textAlign = 'left'; 
                     line.innerHTML = '<span style="color: #00ff66;">&lt;Console&gt; [Result]:</span><br>' + highlightCode(pyOutput, 'py');
                     output.appendChild(line);
                   } catch (err) {
