@@ -198,6 +198,17 @@
             
             // Windows XP Error Sound
             const errorSound = new Audio('https://www.myinstants.com/media/sounds/windows-xp-error.mp3');
+errorSound.volume = 0.5;
+errorSound.preload = 'auto';
+
+function unlockAudio() {
+  errorSound.play().then(() => {
+    errorSound.pause();
+    errorSound.currentTime = 0;
+  }).catch(() => {});
+  input.removeEventListener('keydown', unlockAudio);
+}
+input.addEventListener('keydown', unlockAudio);
 
             let currentMode = 'multi'; 
             let ollamaEnabled = false;
