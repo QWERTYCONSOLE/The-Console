@@ -37,7 +37,6 @@
             border-radius: 4px;
             color: #fff;
         }
-        /* Hide the terminal container until the script runs */
         #terminal-container { display: none; }
     </style>
 </head>
@@ -55,7 +54,6 @@
         </div>
     </div>
 
-    <!-- The script will create the terminal container here -->
     <div id="terminal-container"></div>
 
     <script>
@@ -93,19 +91,19 @@
               return;
             }
 
-            const CLIENT_LINES = 1280; 
+            const CLIENT_LINES = 1285; 
             const WORKER_LINES = 175;
             const CURRENT_LINE_COUNT = CLIENT_LINES + WORKER_LINES;
 
             let container = document.createElement('div');
             container.id = 'retro-console-root';
-            container.style.cssText = `
+                        container.style.cssText = `
               position: fixed;
               top: 0;
               left: 0;
               width: 100vw;
               height: 100vh;
-              background-color: #0d0d0d;
+              background-color: rgba(0, 0, 0, 0.8); /* 80% opaque black */
               color: #00ff66;
               font-family: 'Courier New', Courier, monospace;
               font-size: 1rem;
@@ -794,6 +792,7 @@
               writeLine(`OS (Platform): ${navigator.platform}`);
               writeLine(`Screen Resolution: ${window.screen.width}x${window.screen.height}`);
               writeLine(`Window Size: ${window.innerWidth}x${window.innerHeight}`);
+              writeLine(`Window Size: ${window.innerWidth}x${window.innerHeight}`);
               writeLine(`CPU Cores: ${navigator.hardwareConcurrency || 'Unknown'}`);
               writeLine(`Device Memory: ${navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'Unknown'}`);
               
@@ -1147,7 +1146,7 @@
                              ' - rainbow (toggles full-screen rainbow mode)\n' +
                              ' - ascii (prints random ASCII art)\n' +
                              ' - flip (flips a coin)\n' +
-                             ' - roll (rolls a 6-sided die)\n' +
+                             ' - roll [sides] (rolls a die, defaults to 6 sides)\n' +
                              ' - echo [text] (prints text back)\n' +
                              ' - lines (shows total lines of console code)\n' +
                              ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
@@ -1368,7 +1367,12 @@
                 } else if (cmdLower === 'flip') {
                   response = '<Console> 🪙 ' + (Math.random() < 0.5 ? 'HEADS' : 'TAILS');
                 } else if (cmdLower === 'roll') {
-                  response = '<Console> 🎲 You rolled a ' + (Math.floor(Math.random() * 6) + 1);
+                  let sides = parseInt(arg);
+                  if (isNaN(sides) || sides < 2) {
+                    sides = 6;
+                  }
+                  const rollResult = Math.floor(Math.random() * sides) + 1;
+                  response = `<Console> 🎲 You rolled a d${sides} and got a ${rollResult}!`;
                 } else if (cmdLower === 'echo') {
                   response = arg || '<Console> (nothing to echo)';
                 } else if (cmdLower === 'credits') {
