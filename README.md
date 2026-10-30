@@ -7,3 +7,5 @@ on this device accept for the full experience. accepting adds 3 commands:
  - share [text] (opens native OS share menu - SITE EXCLUSIVE)
  why does it say site excusive? original model was made from client console JS and cloudflare, since this is a website it uses HTML and cloudflare. site exclusive
 just means without HTML it wouldnt be there
+created 10/30/2026 3:43AM Pacific Standard Time: 00b912a9.the-terminal-web.pages.dev’s DNS address could not be found. Diagnosing the problem. that means no
+happiness :( i will try to fix it
