@@ -5,55 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Super Terminal</title>
     <style>
-        body {
-            background-color: #0d0d0d;
-            color: #00ff66;
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            text-align: center;
-            transition: all 0.5s;
-        }
-        #landing-page {
-            max-width: 600px;
-            padding: 20px;
-        }
-        h1 { font-size: 3rem; text-shadow: 0 0 10px #00ff66; }
-        p { line-height: 1.5; font-size: 1.1rem; }
-        .disclaimer {
-            border: 2px solid #00ff66;
-            padding: 20px;
-            margin-top: 20px;
-            background: #050505;
-            box-shadow: 0 0 15px rgba(0, 255, 102, 0.2);
-        }
-        code {
-            background: #1a1a1a;
-            padding: 2px 6px;
-            border-radius: 4px;
-            color: #fff;
-        }
-        #terminal-container { display: none; }
+
     </style>
 </head>
 <body>
-    <div id="landing-page">
-        <h1>SUPER TERMINAL</h1>
-        <p>Welcome. To bypass browser security and access the full suite of tools (including AI, Python, and Weather), you need to launch the terminal.</p>
-        
-        <div class="disclaimer">
-            <strong>HOW TO LAUNCH:</strong><br><br>
-            1. Press <code>F12</code> (or <code>Ctrl+Shift+I</code>) to open Developer Tools.<br>
-            2. Click on the <strong>Console</strong> tab.<br>
-            3. Paste the terminal script into the console and press <strong>Enter</strong>.<br><br>
-            <em>Warning: Please ensure you trust the script before pasting.</em>
-        </div>
-    </div>
-
     <div id="terminal-container"></div>
 
     <script>
@@ -126,7 +81,6 @@
             `;
 
             document.body.appendChild(container);
-            document.getElementById('landing-page').style.display = 'none';
 
             let styleTag = document.createElement('style');
             styleTag.innerHTML = `
