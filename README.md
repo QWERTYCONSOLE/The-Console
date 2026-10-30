@@ -1,5 +1,5 @@
 created 10/30/2026 12:31AM Pacific Standard Time: site is being worked on, it could take 1 hour or a full day
-created 10/30/2026 1:03AM Pacific Standard Time: website works. here is the link: https://00b912a9.the-terminal-web.pages.dev/
+created 10/30/2026 1:03AM Pacific Standard Time: website works. here is the link: https://the-console.pages.dev/
 created 10/30/2026 1:42AM Pacific Standard Time: if and/or whenever 00b912a9.the-terminal-web.pages.dev is asking you to Access other apps and services (or location)
 on this device accept for the full experience. accepting adds 3 commands:
  - copy [text] (copies text to clipboard - SITE EXCLUSIVE)
@@ -9,4 +9,4 @@ on this device accept for the full experience. accepting adds 3 commands:
 just means without HTML it wouldnt be there
 created 10/30/2026 3:43AM Pacific Standard Time: 00b912a9.the-terminal-web.pages.dev’s DNS address could not be found. Diagnosing the problem. that means no
 happiness :( i will try to fix it
-ok we may have to make a new domain
+created 10/30/2026 3:56 Pacific Standard Time: so the worker decided to swap up the domains, i freaked out for no reason it is now https://the-console.pages.dev/
