@@ -58,7 +58,6 @@
             let container = document.createElement('div');
             container.id = 'retro-console-root';
             
-            // Semi-transparent black so Matrix rain shows through
             container.style.cssText = `
               position: fixed;
               top: 0;
@@ -196,19 +195,30 @@
             let historyIndex = -1;
             const WORKER_URL = 'https://console-ai-js.qwerty12345-1o1.workers.dev';
             
-            // Windows XP Error Sound
+            // Audio Setup
             const errorSound = new Audio('https://www.myinstants.com/media/sounds/windows-xp-error.mp3');
-errorSound.volume = 0.5;
-errorSound.preload = 'auto';
+            errorSound.volume = 0.5;
+            errorSound.preload = 'auto';
+            let audioUnlocked = false;
 
-function unlockAudio() {
-  errorSound.play().then(() => {
-    errorSound.pause();
-    errorSound.currentTime = 0;
-  }).catch(() => {});
-  input.removeEventListener('keydown', unlockAudio);
-}
-input.addEventListener('keydown', unlockAudio);
+            function playError() {
+              if (audioUnlocked) {
+                errorSound.currentTime = 0; 
+                errorSound.play().catch(e => {});
+              }
+            }
+
+            // Unlock audio on first keypress
+            input.addEventListener('keydown', function unlockAudio() {
+              if (!audioUnlocked) {
+                errorSound.play().then(() => {
+                  errorSound.pause();
+                  errorSound.currentTime = 0;
+                  audioUnlocked = true;
+                }).catch(e => {});
+              }
+              input.removeEventListener('keydown', unlockAudio);
+            });
 
             let currentMode = 'multi'; 
             let ollamaEnabled = false;
@@ -357,7 +367,7 @@ input.addEventListener('keydown', unlockAudio);
                 });
                 
               } catch (err) {
-                errorSound.play().catch(e => {});
+                playError();
                 writeLine('<Console> [Emulator Error]: Failed to load v86. ' + err.message);
               }
             }
@@ -615,7 +625,7 @@ input.addEventListener('keydown', unlockAudio);
                     console.log = originalLog;
                     outputScreen.textContent += '> Execution finished.\n';
                   } catch (err) {
-                    errorSound.play().catch(e => {});
+                    playError();
                     outputScreen.textContent += '[JS Error]: ' + err.message + '\n';
                   }
                 } else if (lang === 'py') {
@@ -637,7 +647,7 @@ input.addEventListener('keydown', unlockAudio);
                     outputScreen.textContent += pyOutput;
                     outputScreen.textContent += '> Execution finished.\n';
                   } catch (err) {
-                    errorSound.play().catch(e => {});
+                    playError();
                     outputScreen.textContent += '[Python Error]: ' + err.message + '\n';
                   }
                   input.disabled = false;
@@ -655,7 +665,7 @@ input.addEventListener('keydown', unlockAudio);
                 const text = await res.text();
                 return `<Console> [Weather]: ${text.trim()}`;
               } catch (err) {
-                errorSound.play().catch(e => {});
+                playError();
                 return `<Console> [Weather Error]: Could not fetch weather for "${city}". ${err.message}`;
               }
             }
@@ -672,10 +682,10 @@ input.addEventListener('keydown', unlockAudio);
                   const definition = entry.meanings[0].definitions[0].definition;
                   return `<Console> [${entry.word}] (${partOfSpeech}):\n  ${definition}`;
                 }
-                errorSound.play().catch(e => {});
+                playError();
                 return `<Console> [Definition Error]: No definitions found for "${word}".`;
               } catch (err) {
-                errorSound.play().catch(e => {});
+                playError();
                 return `<Console> [Definition Error]: Could not fetch definition for "${word}". ${err.message}`;
               }
             }
@@ -740,11 +750,11 @@ input.addEventListener('keydown', unlockAudio);
                   writeLine(`OpenAI Key: ${data.providers.openai}`);
                   writeLine(`OpenRouter Key: ${data.providers.openrouter}`);
                 } else {
-                  errorSound.play().catch(e => {});
+                  playError();
                   writeLine(`Worker Error: HTTP ${res.status}`);
                 }
               } catch (err) {
-                errorSound.play().catch(e => {});
+                playError();
                 writeLine(`Worker Error: Could not reach ${WORKER_URL}`);
               }
 
@@ -758,11 +768,10 @@ input.addEventListener('keydown', unlockAudio);
                 if (res.ok) {
                   writeLine('Ollama Engine: ACTIVE (127.0.0.1:11434)');
                 } else {
-                  errorSound.play().catch(e => {});
-                  writeLine(`Ollama Engine: ERROR (HTTP ${res.status})`);
-                }
+                  playError();
+                  writeLine(`Ollama Engine: ERROR (HTTP ${res.status})`);                }
               } catch (err) {
-                errorSound.play().catch(e => {});
+                playError();
                 writeLine('Ollama Engine: OFFLINE');
               }
 
@@ -815,11 +824,11 @@ input.addEventListener('keydown', unlockAudio);
                 if (response.ok && data.success) {
                   return { success: true, responses: data.responses };
                 } else {
-                  errorSound.play().catch(e => {});
+                  playError();
                   return { success: false, error: data.error || "Unknown worker error" };
                 }
               } catch (err) {
-                errorSound.play().catch(e => {});
+                playError();
                 return { success: false, error: "Connection error: Could not reach Cloudflare Worker." };
               }
             }
@@ -845,10 +854,10 @@ input.addEventListener('keydown', unlockAudio);
                 if (data && data.message && data.message.content) {
                   return { success: true, text: data.message.content, provider: 'ollama' };
                 }
-                errorSound.play().catch(e => {});
+                playError();
                 return { success: false, error: 'Ollama returned an invalid response.' };
               } catch (err) {
-                errorSound.play().catch(e => {});
+                playError();
                 if (err.name === 'AbortError') {
                   return { success: false, error: 'Ollama took longer than 90 seconds and was stopped to free up your CPU.' };
                 }
@@ -867,7 +876,7 @@ input.addEventListener('keydown', unlockAudio);
               try {
                 ({ loadPyodide } = await import('https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.mjs'));
               } catch (err) {
-                errorSound.play().catch(e => {});
+                playError();
                 throw new Error("CDN import failed: " + err.message);
               }
 
@@ -876,7 +885,7 @@ input.addEventListener('keydown', unlockAudio);
                   indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/'
                 });
               } catch (err) {
-                errorSound.play().catch(e => {});
+                playError();
                 throw new Error("Pyodide init failed: " + err.message);
               }
               
@@ -968,7 +977,7 @@ input.addEventListener('keydown', unlockAudio);
                       writeLine('<Console> [Result]: Executed successfully (no return value)');
                     }
                   } catch (err) {
-                    errorSound.play().catch(e => {});
+                    playError();
                     writeLine('<Console> [JS Error]: ' + err.message);
                   }
                   scrollToBottom();
@@ -1002,7 +1011,7 @@ input.addEventListener('keydown', unlockAudio);
                     line.innerHTML = '<span style="color: #00ff66;">&lt;Console&gt; [Result]:</span><br>' + highlightCode(pyOutput, 'py');
                     output.appendChild(line);
                   } catch (err) {
-                    errorSound.play().catch(e => {});
+                    playError();
                     writeLine('<Console> [Python Error]: ' + err.message);
                   }
 
@@ -1059,7 +1068,6 @@ input.addEventListener('keydown', unlockAudio);
                 let cmdLower = parts[0].toLowerCase();
                 let arg = parts.slice(1).join(' ');
                 
-                // Auto-correct common typos for rainbow
                 if (cmdLower === 'ranbow' || cmdLower === 'reinbow') cmdLower = 'rainbow';
 
                 if (customCommands[cmdLower]) {
@@ -1067,7 +1075,7 @@ input.addEventListener('keydown', unlockAudio);
                   try {
                     (0, eval)(customCommands[cmdLower]);
                   } catch (err) {
-                    errorSound.play().catch(e => {});
+                    playError();
                     writeLine('<Console> [Custom Cmd Error]: ' + err.message);
                   }
                   scrollToBottom();
@@ -1164,7 +1172,7 @@ input.addEventListener('keydown', unlockAudio);
                       writeLine('<Console> [Clipboard] Copied to system clipboard!');
                       scrollToBottom();
                     }).catch(err => {
-                      errorSound.play().catch(e => {});
+                      playError();
                       writeLine('<Console> [Clipboard Error] Could not copy. ' + err.message);
                       scrollToBottom();
                     });
@@ -1172,7 +1180,7 @@ input.addEventListener('keydown', unlockAudio);
                   }
                 } else if (cmdLower === 'whereami') {
                   if (!navigator.geolocation) {
-                    errorSound.play().catch(e => {});
+                    playError();
                     response = '<Console> Geolocation is not supported by this browser.';
                   } else {
                     resetInput();
@@ -1186,7 +1194,7 @@ input.addEventListener('keydown', unlockAudio);
                         scrollToBottom();
                       },
                       (err) => {
-                        errorSound.play().catch(e => {});
+                        playError();
                         writeLine(`<Console> [Geolocation Error]: ${err.message}`);
                         input.disabled = false;
                         maintainFocus();
@@ -1203,13 +1211,13 @@ input.addEventListener('keydown', unlockAudio);
                       writeLine('<Console> [Share] Shared successfully!');
                       scrollToBottom();
                     }).catch(err => {
-                      errorSound.play().catch(e => {});
+                      playError();
                       writeLine('<Console> [Share Error] Share cancelled or failed.');
                       scrollToBottom();
                     });
                     response = '';
                   } else {
-                    errorSound.play().catch(e => {});
+                    playError();
                     response = '<Console> [Share Error] Native sharing is not supported on this device.';
                   }
                 } else if (cmdLower === 'save') {
@@ -1234,14 +1242,14 @@ input.addEventListener('keydown', unlockAudio);
                       const result = (0, eval)(safeExpr);
                       response = `<Console> [Calc]: ${safeExpr} = ${result}`;
                     } catch (e) {
-                      errorSound.play().catch(e => {});
+                      playError();
                       response = '<Console> [Calc Error]: Invalid math expression.';
                     }
                   }
                 } else if (cmdLower === 'password') {
                   const len = parseInt(arg) || 16;
                   if (len > 128) { 
-                    errorSound.play().catch(e => {});
+                    playError();
                     response = '<Console> Max password length is 128.'; 
                   }
                   else {
@@ -1333,7 +1341,7 @@ input.addEventListener('keydown', unlockAudio);
                       localStorage.setItem('retro_notes', JSON.stringify(notes));
                       response = `<Console> [Note Saved]: "${arg}"`;
                     } catch (e) {
-                      errorSound.play().catch(e => {});
+                      playError();
                       response = '<Console> [Error]: Could not save note (Storage full or blocked).';
                     }
                   }
@@ -1350,7 +1358,7 @@ input.addEventListener('keydown', unlockAudio);
                       response = noteLines.join('\n');
                     }
                   } catch (e) {
-                    errorSound.play().catch(e => {});
+                    playError();
                     response = '<Console> [Error]: Could not load notes.';
                   }
                 } else if (cmdLower === 'wipe') {
@@ -1358,14 +1366,14 @@ input.addEventListener('keydown', unlockAudio);
                     localStorage.removeItem('retro_notes');
                     response = '<Console> All saved notes have been wiped.';
                   } catch (e) {
-                    errorSound.play().catch(e => {});
+                    playError();
                     response = '<Console> [Error]: Could not wipe notes.';
                   }
                 } else if (cmdLower === 'rainbow') {
                   if (container.classList.contains('rainbow-mode')) {
                     container.classList.remove('rainbow-mode', 'rainbow-bg');
                     container.style.color = '#00ff66';
-                    container.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'; // FIX: Back to transparent
+                    container.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
                     response = '<Console> Rainbow mode disabled.';
                   } else {
                     container.classList.add('rainbow-mode', 'rainbow-bg');
@@ -1446,7 +1454,7 @@ input.addEventListener('keydown', unlockAudio);
                     maintainFocus();
                     return;
                   } else {
-                    errorSound.play().catch(e => {});
+                    playError();
                     response = '<Console> Invalid session ID. Type "history" to view available session IDs.';
                   }
                 } else if (cmdLower === 'picker') {
@@ -1484,7 +1492,7 @@ input.addEventListener('keydown', unlockAudio);
                 } else if (cmdLower === 'time') {
                   response = arg ? '<Console> Time (' + arg.toUpperCase() + '): ' + parseOffsetTime(arg) : '<Console> Local time: ' + new Date().toLocaleTimeString();
                 } else {
-                  errorSound.play().catch(e => {});
+                  playError();
                   response = '<Console> Command not recognized: "' + fullInput + '". Type "help" for options.';
                 }
 
