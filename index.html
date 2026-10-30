@@ -196,6 +196,9 @@
             let historyIndex = -1;
             const WORKER_URL = 'https://console-ai-js.qwerty12345-1o1.workers.dev';
             
+            // Windows XP Error Sound
+            const errorSound = new Audio('https://www.myinstants.com/media/sounds/windows-xp-error.mp3');
+
             let currentMode = 'multi'; 
             let ollamaEnabled = false;
             let linuxWrapper = null; 
@@ -343,6 +346,7 @@
                 });
                 
               } catch (err) {
+                errorSound.play().catch(e => {});
                 writeLine('<Console> [Emulator Error]: Failed to load v86. ' + err.message);
               }
             }
@@ -600,6 +604,7 @@
                     console.log = originalLog;
                     outputScreen.textContent += '> Execution finished.\n';
                   } catch (err) {
+                    errorSound.play().catch(e => {});
                     outputScreen.textContent += '[JS Error]: ' + err.message + '\n';
                   }
                 } else if (lang === 'py') {
@@ -621,6 +626,7 @@
                     outputScreen.textContent += pyOutput;
                     outputScreen.textContent += '> Execution finished.\n';
                   } catch (err) {
+                    errorSound.play().catch(e => {});
                     outputScreen.textContent += '[Python Error]: ' + err.message + '\n';
                   }
                   input.disabled = false;
@@ -638,6 +644,7 @@
                 const text = await res.text();
                 return `<Console> [Weather]: ${text.trim()}`;
               } catch (err) {
+                errorSound.play().catch(e => {});
                 return `<Console> [Weather Error]: Could not fetch weather for "${city}". ${err.message}`;
               }
             }
@@ -654,8 +661,10 @@
                   const definition = entry.meanings[0].definitions[0].definition;
                   return `<Console> [${entry.word}] (${partOfSpeech}):\n  ${definition}`;
                 }
+                errorSound.play().catch(e => {});
                 return `<Console> [Definition Error]: No definitions found for "${word}".`;
               } catch (err) {
+                errorSound.play().catch(e => {});
                 return `<Console> [Definition Error]: Could not fetch definition for "${word}". ${err.message}`;
               }
             }
@@ -720,9 +729,11 @@
                   writeLine(`OpenAI Key: ${data.providers.openai}`);
                   writeLine(`OpenRouter Key: ${data.providers.openrouter}`);
                 } else {
+                  errorSound.play().catch(e => {});
                   writeLine(`Worker Error: HTTP ${res.status}`);
                 }
               } catch (err) {
+                errorSound.play().catch(e => {});
                 writeLine(`Worker Error: Could not reach ${WORKER_URL}`);
               }
 
@@ -736,9 +747,11 @@
                 if (res.ok) {
                   writeLine('Ollama Engine: ACTIVE (127.0.0.1:11434)');
                 } else {
+                  errorSound.play().catch(e => {});
                   writeLine(`Ollama Engine: ERROR (HTTP ${res.status})`);
                 }
               } catch (err) {
+                errorSound.play().catch(e => {});
                 writeLine('Ollama Engine: OFFLINE');
               }
 
@@ -749,7 +762,7 @@
                 localStorage.removeItem('diag_test');
                 writeLine(`LocalStorage: ACTIVE (Notes & History are saving)`);
               } catch (e) {
-              writeLine(`LocalStorage: POLYFILLED (Notes & History are in-memory)`);
+                writeLine(`LocalStorage: POLYFILLED (Notes & History are in-memory)`);
               }
 
               writeLine('\n--- [ENVIRONMENT] ---');
@@ -791,9 +804,11 @@
                 if (response.ok && data.success) {
                   return { success: true, responses: data.responses };
                 } else {
+                  errorSound.play().catch(e => {});
                   return { success: false, error: data.error || "Unknown worker error" };
                 }
               } catch (err) {
+                errorSound.play().catch(e => {});
                 return { success: false, error: "Connection error: Could not reach Cloudflare Worker." };
               }
             }
@@ -819,8 +834,10 @@
                 if (data && data.message && data.message.content) {
                   return { success: true, text: data.message.content, provider: 'ollama' };
                 }
+                errorSound.play().catch(e => {});
                 return { success: false, error: 'Ollama returned an invalid response.' };
               } catch (err) {
+                errorSound.play().catch(e => {});
                 if (err.name === 'AbortError') {
                   return { success: false, error: 'Ollama took longer than 90 seconds and was stopped to free up your CPU.' };
                 }
@@ -839,6 +856,7 @@
               try {
                 ({ loadPyodide } = await import('https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.mjs'));
               } catch (err) {
+                errorSound.play().catch(e => {});
                 throw new Error("CDN import failed: " + err.message);
               }
 
@@ -847,6 +865,7 @@
                   indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/'
                 });
               } catch (err) {
+                errorSound.play().catch(e => {});
                 throw new Error("Pyodide init failed: " + err.message);
               }
               
@@ -938,6 +957,7 @@
                       writeLine('<Console> [Result]: Executed successfully (no return value)');
                     }
                   } catch (err) {
+                    errorSound.play().catch(e => {});
                     writeLine('<Console> [JS Error]: ' + err.message);
                   }
                   scrollToBottom();
@@ -971,6 +991,7 @@
                     line.innerHTML = '<span style="color: #00ff66;">&lt;Console&gt; [Result]:</span><br>' + highlightCode(pyOutput, 'py');
                     output.appendChild(line);
                   } catch (err) {
+                    errorSound.play().catch(e => {});
                     writeLine('<Console> [Python Error]: ' + err.message);
                   }
 
@@ -1035,6 +1056,7 @@
                   try {
                     (0, eval)(customCommands[cmdLower]);
                   } catch (err) {
+                    errorSound.play().catch(e => {});
                     writeLine('<Console> [Custom Cmd Error]: ' + err.message);
                   }
                   scrollToBottom();
@@ -1131,6 +1153,7 @@
                       writeLine('<Console> [Clipboard] Copied to system clipboard!');
                       scrollToBottom();
                     }).catch(err => {
+                      errorSound.play().catch(e => {});
                       writeLine('<Console> [Clipboard Error] Could not copy. ' + err.message);
                       scrollToBottom();
                     });
@@ -1138,6 +1161,7 @@
                   }
                 } else if (cmdLower === 'whereami') {
                   if (!navigator.geolocation) {
+                    errorSound.play().catch(e => {});
                     response = '<Console> Geolocation is not supported by this browser.';
                   } else {
                     resetInput();
@@ -1151,6 +1175,7 @@
                         scrollToBottom();
                       },
                       (err) => {
+                        errorSound.play().catch(e => {});
                         writeLine(`<Console> [Geolocation Error]: ${err.message}`);
                         input.disabled = false;
                         maintainFocus();
@@ -1167,11 +1192,13 @@
                       writeLine('<Console> [Share] Shared successfully!');
                       scrollToBottom();
                     }).catch(err => {
+                      errorSound.play().catch(e => {});
                       writeLine('<Console> [Share Error] Share cancelled or failed.');
                       scrollToBottom();
                     });
                     response = '';
                   } else {
+                    errorSound.play().catch(e => {});
                     response = '<Console> [Share Error] Native sharing is not supported on this device.';
                   }
                 } else if (cmdLower === 'save') {
@@ -1196,12 +1223,16 @@
                       const result = (0, eval)(safeExpr);
                       response = `<Console> [Calc]: ${safeExpr} = ${result}`;
                     } catch (e) {
+                      errorSound.play().catch(e => {});
                       response = '<Console> [Calc Error]: Invalid math expression.';
                     }
                   }
                 } else if (cmdLower === 'password') {
                   const len = parseInt(arg) || 16;
-                  if (len > 128) { response = '<Console> Max password length is 128.'; }
+                  if (len > 128) { 
+                    errorSound.play().catch(e => {});
+                    response = '<Console> Max password length is 128.'; 
+                  }
                   else {
                     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
                     let pass = "";
@@ -1291,6 +1322,7 @@
                       localStorage.setItem('retro_notes', JSON.stringify(notes));
                       response = `<Console> [Note Saved]: "${arg}"`;
                     } catch (e) {
+                      errorSound.play().catch(e => {});
                       response = '<Console> [Error]: Could not save note (Storage full or blocked).';
                     }
                   }
@@ -1307,6 +1339,7 @@
                       response = noteLines.join('\n');
                     }
                   } catch (e) {
+                    errorSound.play().catch(e => {});
                     response = '<Console> [Error]: Could not load notes.';
                   }
                 } else if (cmdLower === 'wipe') {
@@ -1314,6 +1347,7 @@
                     localStorage.removeItem('retro_notes');
                     response = '<Console> All saved notes have been wiped.';
                   } catch (e) {
+                    errorSound.play().catch(e => {});
                     response = '<Console> [Error]: Could not wipe notes.';
                   }
                 } else if (cmdLower === 'rainbow') {
@@ -1401,6 +1435,7 @@
                     maintainFocus();
                     return;
                   } else {
+                    errorSound.play().catch(e => {});
                     response = '<Console> Invalid session ID. Type "history" to view available session IDs.';
                   }
                 } else if (cmdLower === 'picker') {
@@ -1438,6 +1473,7 @@
                 } else if (cmdLower === 'time') {
                   response = arg ? '<Console> Time (' + arg.toUpperCase() + '): ' + parseOffsetTime(arg) : '<Console> Local time: ' + new Date().toLocaleTimeString();
                 } else {
+                  errorSound.play().catch(e => {});
                   response = '<Console> Command not recognized: "' + fullInput + '". Type "help" for options.';
                 }
 
