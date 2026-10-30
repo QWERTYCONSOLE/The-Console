@@ -58,7 +58,7 @@
             let container = document.createElement('div');
             container.id = 'retro-console-root';
             
-            // FIX: Semi-transparent black so Matrix rain shows through
+            // Semi-transparent black so Matrix rain shows through
             container.style.cssText = `
               position: fixed;
               top: 0;
@@ -111,22 +111,22 @@
                 50% { color: #00ff00; }
                 67% { color: #00ffff; }
                 83% { color: #0088ff; }
-                100% { color: #ff00ff; }
+                100% { color: #ff0000; }
               }
               .rainbow-mode {
-                animation: rainbow-text 3s linear infinite !important;
-              }
-              .rainbow-bg {
-                animation: rainbow-bg 5s linear infinite !important;
+                animation: rainbow-text 8s linear infinite !important;
               }
               @keyframes rainbow-bg {
-                0% { background-color: #2a0000; }
-                17% { background-color: #2a1a00; }
-                33% { background-color: #2a2a00; }
-                50% { background-color: #002a00; }
-                67% { background-color: #002a2a; }
-                83% { background-color: #00002a; }
-                100% { background-color: #2a002a; }
+                0% { background-color: rgba(42, 0, 0, 0.7); }
+                17% { background-color: rgba(42, 26, 0, 0.7); }
+                33% { background-color: rgba(42, 42, 0, 0.7); }
+                50% { background-color: rgba(0, 42, 0, 0.7); }
+                67% { background-color: rgba(0, 42, 42, 0.7); }
+                83% { background-color: rgba(0, 0, 42, 0.7); }
+                100% { background-color: rgba(42, 0, 0, 0.7); }
+              }
+              .rainbow-bg {
+                animation: rainbow-bg 10s linear infinite !important;
               }
               .sandbox-editor {
                 background: #0d0d0d;
@@ -785,8 +785,7 @@
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   signal: controller.signal,
-                  body: JSON.stringify({ prompt: promptText })
-                });
+                  body: JSON.stringify({ prompt: promptText }) });
                 clearTimeout(timeoutId);
                 const data = await response.json();
                 if (response.ok && data.success) {
@@ -1027,6 +1026,9 @@
                 let parts = fullInput.split(' ');
                 let cmdLower = parts[0].toLowerCase();
                 let arg = parts.slice(1).join(' ');
+                
+                // Auto-correct common typos for rainbow
+                if (cmdLower === 'ranbow' || cmdLower === 'reinbow') cmdLower = 'rainbow';
 
                 if (customCommands[cmdLower]) {
                   resetInput();
@@ -1318,7 +1320,7 @@
                   if (container.classList.contains('rainbow-mode')) {
                     container.classList.remove('rainbow-mode', 'rainbow-bg');
                     container.style.color = '#00ff66';
-                    container.style.backgroundColor = '#0d0d0d';
+                    container.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'; // FIX: Back to transparent
                     response = '<Console> Rainbow mode disabled.';
                   } else {
                     container.classList.add('rainbow-mode', 'rainbow-bg');
