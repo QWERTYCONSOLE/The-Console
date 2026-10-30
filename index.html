@@ -97,13 +97,14 @@
 
             let container = document.createElement('div');
             container.id = 'retro-console-root';
-                        container.style.cssText = `
+            // FIX 1: Added text-align: left to the main container override
+            container.style.cssText = `
               position: fixed;
               top: 0;
               left: 0;
               width: 100vw;
               height: 100vh;
-              background-color: rgba(0, 0, 0, 0.8); /* 80% opaque black */
+              background-color: rgba(0, 0, 0, 0.8);
               color: #00ff66;
               font-family: 'Courier New', Courier, monospace;
               font-size: 1rem;
@@ -112,13 +113,15 @@
               overflow-y: auto;
               z-index: 999999;
               transition: background 0.5s, color 0.5s;
+              text-align: left;
             `;
 
+            // FIX 2: Added text-align: left to the output div and input area
             container.innerHTML = `
-              <div id="output" style="white-space: pre-wrap; margin-bottom: 10px;">&lt;Console&gt; In-page system initialized. Enter "help" for commands</div>
-              <div class="input-line" style="display: flex; align-items: flex-start; margin-top: 10px;">
+              <div id="output" style="white-space: pre-wrap; margin-bottom: 10px; text-align: left;">&lt;Console&gt; In-page system initialized. Enter "help" for commands</div>
+              <div class="input-line" style="display: flex; align-items: flex-start; margin-top: 10px; text-align: left;">
                 <span class="prompt" style="margin-right: 10px; margin-top: 4px; font-weight: bold; flex-shrink: 0;">&lt;QWERTY&gt;</span>
-                <textarea id="cmd" rows="1" autocomplete="off" spellcheck="false" autofocus style="background: transparent; border: none; color: inherit; font-family: 'Courier New', Courier, monospace; font-size: 1rem; outline: none; width: 100%; caret-color: inherit; resize: none; overflow: hidden; line-height: 1.2;"></textarea>
+                <textarea id="cmd" rows="1" autocomplete="off" spellcheck="false" autofocus style="background: transparent; border: none; color: inherit; font-family: 'Courier New', Courier, monospace; font-size: 1rem; outline: none; width: 100%; caret-color: inherit; resize: none; overflow: hidden; line-height: 1.2; text-align: left;"></textarea>
               </div>
             `;
 
@@ -272,6 +275,7 @@
             function writeLine(text) {
               const line = document.createElement('div');
               line.style.whiteSpace = 'pre-wrap';
+              line.style.textAlign = 'left'; // FIX 3: Force every new line to align left
               line.textContent = text;
               output.appendChild(line);
               return line;
@@ -429,7 +433,7 @@
               writeLine('<Console> [Starting System Monitor...]');
               
               const topUI = document.createElement('div');
-              topUI.style.cssText = 'border: 1px solid #00ff66; padding: 15px; margin-top: 10px; background: #050505; max-width: 500px; font-family: monospace;';
+              topUI.style.cssText = 'border: 1px solid #00ff66; padding: 15px; margin-top: 10px; background: #050505; max-width: 500px; font-family: monospace; text-align: left;';
               topUI.innerHTML = `
                 <div style="margin-bottom: 15px;">
                   <strong>CPU Usage</strong> <br>
@@ -517,6 +521,7 @@
                 flex-direction: column;
                 box-shadow: 0 0 10px rgba(0, 255, 102, 0.2);
                 max-width: 800px;
+                text-align: left;
               `;
 
               const titleBar = document.createElement('div');
@@ -576,6 +581,7 @@
                 max-height: 200px;
                 overflow-y: auto;
                 white-space: pre-wrap;
+                text-align: left;
               `;
               outputScreen.textContent = '> Ready to execute.\n';
 
@@ -783,7 +789,7 @@
                 localStorage.removeItem('diag_test');
                 writeLine(`LocalStorage: ACTIVE (Notes & History are saving)`);
               } catch (e) {
-                writeLine(`LocalStorage: POLYFILLED (Notes & History are in-memory)`);
+              writeLine(`LocalStorage: POLYFILLED (Notes & History are in-memory)`);
               }
 
               writeLine('\n--- [ENVIRONMENT] ---');
@@ -966,6 +972,7 @@
                       let displayResult = typeof evalResult === 'object' ? JSON.stringify(evalResult, null, 2) : String(evalResult);
                       const line = document.createElement('div');
                       line.style.whiteSpace = 'pre-wrap';
+                      line.style.textAlign = 'left'; // Force left alignment
                       line.innerHTML = '<span style="color: #00ff66;">&lt;Console&gt; [Result]:</span><br>' + highlightCode(String(evalResult), 'js');
                       output.appendChild(line);
                     } else {
@@ -1001,6 +1008,7 @@
                     
                     const line = document.createElement('div');
                     line.style.whiteSpace = 'pre-wrap';
+                    line.style.textAlign = 'left'; // Force left alignment
                     line.innerHTML = '<span style="color: #00ff66;">&lt;Console&gt; [Result]:</span><br>' + highlightCode(pyOutput, 'py');
                     output.appendChild(line);
                   } catch (err) {
