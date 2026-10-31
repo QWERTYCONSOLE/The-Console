@@ -286,14 +286,14 @@
 
           for (let i = 0; i < drops.length; i++) {
             const text = chars[Math.floor(Math.random() * chars.length)];
-          ctx.fillText(chars[Math.floor(Math.random() * chars.length)], i * fontSize, drops[i] * fontSize);
+            ctx.fillText(text, i * fontSize, drops[i] * fontSize);
 
             if (drops[i] * fontSize > matrixCanvas.height && Math.random() > 0.975) {
               drops[i] = 0;
             }
             drops[i]++;
           }
-        }, 33);
+        }, 50);
         return '<Console> 🟩 MATRIX MODE ENGAGED 🟩 (Type "matrix" again to disable)';
       }
     }
@@ -782,7 +782,8 @@
     setTimeout(maintainFocus, 100);
     
     container.addEventListener('click', (e) => {
-      if (window.getSelection().toString().length > 0) return; 
+      if (window.getSelection().toString().length
+ > 0) return; 
       if (!e.target.classList.contains('inline-picker') && !e.target.closest('.sandbox-editor') && e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON' && !e.target.closest('.emulator-wrapper')) {
         maintainFocus();
       }
@@ -1258,7 +1259,7 @@
           if (container.classList.contains('rainbow-mode')) {
             container.classList.remove('rainbow-mode', 'rainbow-bg');
             container.style.color = '#00ff66';
-            container.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            container.style.backgroundColor = 'rgba(0, 0, 0, 0.4)'; // Fix: back to 0.4
             response = '<Console> Rainbow mode disabled.';
           } else {
             container.classList.add('rainbow-mode', 'rainbow-bg');
