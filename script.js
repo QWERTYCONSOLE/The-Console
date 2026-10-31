@@ -39,7 +39,6 @@
     let container = document.createElement('div');
     container.id = 'retro-console-root';
     
-    // Default background is 40% black
     container.style.cssText = `
       position: fixed;
       top: 0;
@@ -296,7 +295,17 @@
           ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
           ctx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
           
-          ctx.fillStyle = "#00ff66";
+          const cbMode = container.dataset.cbMode;
+          if (cbMode === 'deuteranopia' || cbMode === 'deuteranomaly') {
+            ctx.fillStyle = "#ffff00";
+          } else if (cbMode === 'protanopia' || cbMode === 'protanomaly') {
+            ctx.fillStyle = "#00ffff";
+          } else if (cbMode === 'tritanopia' || cbMode === 'tritanomaly') {
+            ctx.fillStyle = "#ff00ff";
+          } else {
+            ctx.fillStyle = "#00ff66";
+          }
+          
           ctx.font = fontSize + "px monospace";
 
           for (let i = 0; i < drops.length; i++) {
@@ -1271,7 +1280,12 @@
             response = '<Console> [Error]: Could not wipe notes.';
           }
         } else if (cmdLower === 'rainbow') {
-          if (container.classList.contains('rainbow-mode')) {
+          const isColorblind = ['protanopia', 'protanomaly', 'deuteranopia', 'deuteranomaly', 'tritanopia', 'tritanomaly'].includes(container.dataset.cbMode);
+
+          if (isColorblind) {
+            playError();
+            response = '<Console> [Accessibility]: Rainbow mode is not compatible with colorblind mode. Please type "colorblind off" first.';
+          } else if (container.classList.contains('rainbow-mode')) {
             container.classList.remove('rainbow-mode', 'rainbow-bg');
             container.style.color = codeColors.text;
             container.style.backgroundColor = matrixInterval ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.4)';
@@ -1292,6 +1306,7 @@
                        ' - colorblind off';
           } else {
             container.classList.remove('rainbow-mode', 'rainbow-bg');
+            container.dataset.cbMode = arg;
             
             if (arg === 'protanopia') {
               container.style.color = '#00ffff'; 
@@ -1327,6 +1342,7 @@
               container.style.color = '#00ff66';
               container.style.backgroundColor = matrixInterval ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.4)';
               codeColors = { keyword: '#c678dd', string: '#98c379', number: '#d19a66', comment: '#5c6370', text: '#00ff66' };
+              container.dataset.cbMode = 'none';
               response = '<Console> Colorblind mode disabled. Restored default.';
             } else {
               playError();
