@@ -1,0 +1,98 @@
+body {
+    background-color: #0d0d0d;
+    margin: 0;
+    overflow: hidden;
+}
+
+.inline-picker {
+    background: transparent;
+    border: 1px solid currentColor;
+    cursor: pointer;
+    width: 40px;
+    height: 25px;
+    padding: 0;
+    vertical-align: middle;
+}
+.picker-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin: 8px 0;
+}
+@keyframes rainbow-text {
+    0% { color: #ff0000; }
+    17% { color: #ff8800; }
+    33% { color: #ffff00; }
+    50% { color: #00ff00; }
+    67% { color: #00ffff; }
+    83% { color: #0088ff; }
+    100% { color: #ff0000; }
+}
+.rainbow-mode {
+    animation: rainbow-text 8s linear infinite !important;
+}
+@keyframes rainbow-bg {
+    0% { background-color: rgba(42, 0, 0, 0.7); }
+    17% { background-color: rgba(42, 26, 0, 0.7); }
+    33% { background-color: rgba(42, 42, 0, 0.7); }
+    50% { background-color: rgba(0, 42, 0, 0.7); }
+    67% { background-color: rgba(0, 42, 42, 0.7); }
+    83% { background-color: rgba(0, 0, 42, 0.7); }
+    100% { background-color: rgba(42, 0, 0, 0.7); }
+}
+.rainbow-bg {
+    animation: rainbow-bg 10s linear infinite !important;
+}
+.sandbox-editor {
+    background: #0d0d0d;
+    border: none;
+    border-bottom: 1px solid #00ff66;
+    color: #00ff66;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9rem;
+    padding: 10px;
+    width: 100%;
+    height: 200px;
+    resize: vertical;
+    outline: none;
+    box-sizing: border-box;
+}
+.emulator-wrapper {
+    position: relative;
+    width: 644px;
+    height: 404px;
+    margin-top: 10px;
+    border: 2px solid #00ff66;
+    overflow: hidden;
+    outline: none;
+}
+.emulator-wrapper:focus {
+    border-color: #00ffff;
+    box-shadow: 0 0 10px #00ffff;
+}
+#matrix-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1; 
+    opacity: 0.9;
+    pointer-events: none;
+    display: none;
+}
+.bar-bg {
+    background: #222;
+    width: 300px;
+    height: 20px;
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0 10px;
+    border: 1px solid #555;
+}
+.bar-fill {
+    background: #00ff66;
+    height: 100%;
+    width: 0%;
+    transition: width 0.2s;
+}
