@@ -195,8 +195,8 @@
             let historyIndex = -1;
             const WORKER_URL = 'https://console-ai-js.qwerty12345-1o1.workers.dev';
             
-            // Audio Setup
-            const errorSound = new Audio('https://www.myinstants.com/media/sounds/windows-xp-error.mp3');
+            // Audio Setup (Points to local file in your GitHub repo)
+            const errorSound = new Audio('./error.mp3');
             errorSound.volume = 0.5;
             errorSound.preload = 'auto';
             let audioUnlocked = false;
@@ -208,8 +208,8 @@
               }
             }
 
-            // Unlock audio on first keypress
-            input.addEventListener('keydown', function unlockAudio() {
+            // Unlock audio on first keystroke (letter)
+            input.addEventListener('input', function unlockAudio() {
               if (!audioUnlocked) {
                 errorSound.play().then(() => {
                   errorSound.pause();
@@ -217,7 +217,7 @@
                   audioUnlocked = true;
                 }).catch(e => {});
               }
-              input.removeEventListener('keydown', unlockAudio);
+              input.removeEventListener('input', unlockAudio);
             });
 
             let currentMode = 'multi'; 
@@ -769,7 +769,8 @@
                   writeLine('Ollama Engine: ACTIVE (127.0.0.1:11434)');
                 } else {
                   playError();
-                  writeLine(`Ollama Engine: ERROR (HTTP ${res.status})`);                }
+                  writeLine(`Ollama Engine: ERROR (HTTP ${res.status})`);
+                }
               } catch (err) {
                 playError();
                 writeLine('Ollama Engine: OFFLINE');
@@ -792,7 +793,8 @@
               writeLine(`Screen Resolution: ${window.screen.width}x${window.screen.height}`);
               writeLine(`Window Size: ${window.innerWidth}x${window.innerHeight}`);
               writeLine(`Window Size: ${window.innerWidth}x${window.innerHeight}`);
-              writeLine(`CPU Cores: ${navigator.hardwareConcurrency || 'Unknown'}`);
+              writeLine(`CPU Cores: ${navigator.hardwareConcurrency
+ || 'Unknown'}`);
               writeLine(`Device Memory: ${navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'Unknown'}`);
               
               if (navigator.getBattery) {
