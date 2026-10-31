@@ -279,21 +279,27 @@
         const drops = Array(Math.floor(columns)).fill(1);
 
         matrixInterval = setInterval(() => {
-          ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+          // Fade the previous frames
+          ctx.fillStyle = "rgba(0, 0, 0, 0.03)";
           ctx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
+          
           ctx.fillStyle = "#00ff66";
           ctx.font = fontSize + "px monospace";
 
           for (let i = 0; i < drops.length; i++) {
+            // Pick a new random character every frame
             const text = chars[Math.floor(Math.random() * chars.length)];
+            
+            // Draw it at the current position
             ctx.fillText(text, i * fontSize, drops[i] * fontSize);
 
+            // Reset to the top if it hits the bottom
             if (drops[i] * fontSize > matrixCanvas.height && Math.random() > 0.975) {
               drops[i] = 0;
             }
             drops[i]++;
           }
-        }, 50);
+        }, 33);
         return '<Console> 🟩 MATRIX MODE ENGAGED 🟩 (Type "matrix" again to disable)';
       }
     }
@@ -782,8 +788,7 @@
     setTimeout(maintainFocus, 100);
     
     container.addEventListener('click', (e) => {
-      if (window.getSelection().toString().length
- > 0) return; 
+      if (window.getSelection().toString().length > 0) return; 
       if (!e.target.classList.contains('inline-picker') && !e.target.closest('.sandbox-editor') && e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON' && !e.target.closest('.emulator-wrapper')) {
         maintainFocus();
       }
@@ -1259,7 +1264,7 @@
           if (container.classList.contains('rainbow-mode')) {
             container.classList.remove('rainbow-mode', 'rainbow-bg');
             container.style.color = '#00ff66';
-            container.style.backgroundColor = 'rgba(0, 0, 0, 0.4)'; // Fix: back to 0.4
+            container.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
             response = '<Console> Rainbow mode disabled.';
           } else {
             container.classList.add('rainbow-mode', 'rainbow-bg');
