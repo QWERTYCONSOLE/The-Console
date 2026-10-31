@@ -263,9 +263,20 @@
         matrixCanvas.style.display = 'none';
         return '<Console> Matrix mode disabled.';
       } else {
-        matrixCanvas.style.display = 'block';
+        // Make the canvas actually visible as a full-screen overlay behind the text
+        matrixCanvas.style.cssText = `
+          display: block;
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          z-index: 999998;
+          pointer-events: none;
+        `;
+
         const ctx = matrixCanvas.getContext('2d');
-        
+
         const resizeCanvas = () => {
           matrixCanvas.width = window.innerWidth;
           matrixCanvas.height = window.innerHeight;
@@ -275,40 +286,42 @@
 
         const chars = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?";
         const fontSize = 16;
-        const columns = matrixCanvas.width / fontSize;
-        
-        // Store objects with position and character
-        const drops = Array.from({ length: Math.floor(columns) }, () => ({ 
-          y: 1, 
-          char: chars[Math.floor(Math.random() * chars.length)] 
+        const columns = Math.floor(matrixCanvas.width / fontSize);
+
+        const drops = Array.from({ length: columns }, () => ({
+          y: Math.random() * -50, // Stagger starting positions
+          char: chars[Math.floor(Math.random() * chars.length)]
         }));
 
         matrixInterval = setInterval(() => {
-          // Darken the background
-          ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+          // Lighter fade so trails are visible but chars stay readable
+          ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
           ctx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
-          
-          ctx.fillStyle = "#00ff66";
+
           ctx.font = fontSize + "px monospace";
 
           for (let i = 0; i < drops.length; i++) {
-            // Draw the current character
-            ctx.fillText(drops[i].char, i * fontSize, drops[i].y * fontSize);
+            const d = drops[i];
 
-            // Randomly change the character as it falls for the flicker effect
-            if (Math.random() > 0.9) {
-              drops[i].char = chars[Math.floor(Math.random() * chars.length)];
+            // Head character is bright
+            ctx.fillStyle = "#ccffdd";
+            ctx.fillText(d.char, i * fontSize, d.y * fontSize);
+
+            // Randomly morph the character (flicker effect)
+            if (Math.random() > 0.85) {
+              d.char = chars[Math.floor(Math.random() * chars.length)];
             }
 
-            // Reset to top if it hits the bottom
-            if (drops[i].y * fontSize > matrixCanvas.height && Math.random() > 0.975) {
-              drops[i].y = 0;
-              drops[i].char = chars[Math.floor(Math.random() * chars.length)];
+            // Reset to top when it exits the screen
+            if (d.y * fontSize > matrixCanvas.height && Math.random() > 0.975) {
+              d.y = 0;
+              d.char = chars[Math.floor(Math.random() * chars.length)];
             }
-            
-            drops[i].y++;
+
+            d.y++;
           }
-        }, 33);
+        }, 50);
+
         return '<Console> 🟩 MATRIX MODE ENGAGED 🟩 (Type "matrix" again to disable)';
       }
     }
