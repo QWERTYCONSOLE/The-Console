@@ -122,6 +122,14 @@
       'ollama': '#ffd93d'
     };
 
+    let codeColors = {
+      keyword: '#c678dd',
+      string: '#98c379',
+      number: '#d19a66',
+      comment: '#5c6370',
+      text: '#00ff66'
+    };
+
     function autoResize() {
       input.style.height = 'auto';
       input.style.height = (input.scrollHeight) + 'px';
@@ -160,14 +168,14 @@
       let escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       
       if (lang === 'js') {
-        escaped = escaped.replace(/\b(let|const|var|function|return|if|else|for|while|class|new|import|export|from|try|catch|await|async|typeof|instanceof)\b/g, '<span style="color: #c678dd; font-weight: bold;">$1</span>');
-        escaped = escaped.replace(/(['"`])(.*?)\1/g, '<span style="color: #98c379;">$1$2$1</span>');
-        escaped = escaped.replace(/\b(\d+(\.\d+)?)\b/g, '<span style="color: #d19a66;">$1</span>');
-        escaped = escaped.replace(/(\/\/.*)/g, '<span style="color: #5c6370; font-style: italic;">$1</span>');
+        escaped = escaped.replace(/\b(let|const|var|function|return|if|else|for|while|class|new|import|export|from|try|catch|await|async|typeof|instanceof)\b/g, `<span style="color: ${codeColors.keyword}; font-weight: bold;">$1</span>`);
+        escaped = escaped.replace(/(['"`])(.*?)\1/g, `<span style="color: ${codeColors.string};">$1$2$1</span>`);
+        escaped = escaped.replace(/\b(\d+(\.\d+)?)\b/g, `<span style="color: ${codeColors.number};">$1</span>`);
+        escaped = escaped.replace(/(\/\/.*)/g, `<span style="color: ${codeColors.comment}; font-style: italic;">$1</span>`);
       } else if (lang === 'py') {
-        escaped = escaped.replace(/\b(def|return|if|elif|else|for|while|import|from|as|try|except|finally|with|class|print|in|is|not|and|or|True|False|None)\b/g, '<span style="color: #c678dd; font-weight: bold;">$1</span>');
-        escaped = escaped.replace(/(['"])(.*?)\1/g, '<span style="color: #98c379;">$1$2$1</span>');
-        escaped = escaped.replace(/(#.*)/g, '<span style="color: #5c6370; font-style: italic;">$1</span>');
+        escaped = escaped.replace(/\b(def|return|if|elif|else|for|while|import|from|as|try|except|finally|with|class|print|in|is|not|and|or|True|False|None)\b/g, `<span style="color: ${codeColors.keyword}; font-weight: bold;">$1</span>`);
+        escaped = escaped.replace(/(['"])(.*?)\1/g, `<span style="color: ${codeColors.string};">$1$2$1</span>`);
+        escaped = escaped.replace(/(#.*)/g, `<span style="color: ${codeColors.comment}; font-style: italic;">$1</span>`);
       }
       return escaped;
     }
@@ -262,14 +270,12 @@
         clearInterval(matrixInterval);
         matrixInterval = null;
         matrixCanvas.style.display = 'none';
-        // Restore normal terminal background
         if (!container.classList.contains('rainbow-mode')) {
           container.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
         }
         return '<Console> Matrix mode disabled.';
       } else {
         matrixCanvas.style.display = 'block';
-        // Make terminal almost fully transparent to show the Matrix
         container.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
         
         const ctx = matrixCanvas.getContext('2d');
@@ -781,7 +787,6 @@
       } catch (err) {
         playError();
         throw new Error("Pyodide init failed: " + err.message);
-;
       }
       
       writeLine('<Console> [Python engine ready.]');
@@ -866,7 +871,7 @@
               const line = document.createElement('div');
               line.style.whiteSpace = 'pre-wrap';
               line.style.textAlign = 'left'; 
-              line.innerHTML = '<span style="color: #00ff66;">&lt;Console&gt; [Result]:</span><br>' + highlightCode(String(evalResult), 'js');
+              line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [Result]:</span><br>` + highlightCode(String(evalResult), 'js');
               output.appendChild(line);
             } else {
               writeLine('<Console> [Result]: Executed successfully (no return value)');
@@ -903,7 +908,7 @@
             const line = document.createElement('div');
             line.style.whiteSpace = 'pre-wrap';
             line.style.textAlign = 'left'; 
-            line.innerHTML = '<span style="color: #00ff66;">&lt;Console&gt; [Result]:</span><br>' + highlightCode(pyOutput, 'py');
+            line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [Result]:</span><br>` + highlightCode(pyOutput, 'py');
             output.appendChild(line);
           } catch (err) {
             playError();
@@ -1050,6 +1055,7 @@
                      ' - picker (opens interactive text & background color pickers)\n' +
                      ' - theme [text_color] [bg_color] (changes console colors)\n' +
                      ' - rainbow (toggles full-screen rainbow mode)\n' +
+                     ' - colorblind [mode] (accessibility color palettes)\n' +
                      ' - ascii (prints random ASCII art)\n' +
                      ' - flip (flips a coin)\n' +
                      ' - roll [sides] (rolls a die, defaults to 6 sides)\n' +
@@ -1267,13 +1273,65 @@
         } else if (cmdLower === 'rainbow') {
           if (container.classList.contains('rainbow-mode')) {
             container.classList.remove('rainbow-mode', 'rainbow-bg');
-            container.style.color = '#00ff66';
-            // If matrix is on, keep it transparent. Otherwise, normal.
+            container.style.color = codeColors.text;
             container.style.backgroundColor = matrixInterval ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.4)';
             response = '<Console> Rainbow mode disabled.';
           } else {
             container.classList.add('rainbow-mode', 'rainbow-bg');
             response = '<Console> 🌈 RAINBOW MODE ENGAGED 🌈 (Type "rainbow" again to disable)';
+          }
+        } else if (cmdLower === 'colorblind') {
+          if (!arg) {
+            response = '<Console> Colorblind Modes available:\n' +
+                       ' - colorblind protanopia\n' +
+                       ' - colorblind protanomaly\n' +
+                       ' - colorblind deuteranopia\n' +
+                       ' - colorblind deuteranomaly\n' +
+                       ' - colorblind tritanopia\n' +
+                       ' - colorblind tritanomaly\n' +
+                       ' - colorblind off';
+          } else {
+            container.classList.remove('rainbow-mode', 'rainbow-bg');
+            
+            if (arg === 'protanopia') {
+              container.style.color = '#00ffff'; 
+              container.style.backgroundColor = 'rgba(0, 0, 0, 0.9)'; 
+              codeColors = { keyword: '#00ffff', string: '#ffffff', number: '#aaaaaa', comment: '#666666', text: '#00ffff' };
+              response = '<Console> Colorblind mode set to: PROTANOPIA';
+            } else if (arg === 'protanomaly') {
+              container.style.color = '#87ceeb'; 
+              container.style.backgroundColor = 'rgba(0, 0, 0, 0.9)'; 
+              codeColors = { keyword: '#87ceeb', string: '#ffffff', number: '#aaaaaa', comment: '#666666', text: '#87ceeb' };
+              response = '<Console> Colorblind mode set to: PROTANOMALY';
+            } else if (arg === 'deuteranopia') {
+              container.style.color = '#ffff00'; 
+              container.style.backgroundColor = 'rgba(0, 0, 40, 0.9)'; 
+              codeColors = { keyword: '#ffff00', string: '#ffffff', number: '#aaaaaa', comment: '#666666', text: '#ffff00' };
+              response = '<Console> Colorblind mode set to: DEUTERANOPIA';
+            } else if (arg === 'deuteranomaly') {
+              container.style.color = '#ffd700'; 
+              container.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+              codeColors = { keyword: '#ffd700', string: '#ffffff', number: '#aaaaaa', comment: '#666666', text: '#ffd700' };
+              response = '<Console> Colorblind mode set to: DEUTERANOMALY';
+            } else if (arg === 'tritanopia') {
+              container.style.color = '#ff00ff'; 
+              container.style.backgroundColor = 'rgba(0, 40, 40, 0.9)'; 
+              codeColors = { keyword: '#ff00ff', string: '#ffffff', number: '#aaaaaa', comment: '#666666', text: '#ff00ff' };
+              response = '<Console> Colorblind mode set to: TRITANOPIA';
+            } else if (arg === 'tritanomaly') {
+              container.style.color = '#ffb6c1'; 
+              container.style.backgroundColor = 'rgba(0, 20, 20, 0.9)'; 
+              codeColors = { keyword: '#ffb6c1', string: '#ffffff', number: '#aaaaaa', comment: '#666666', text: '#ffb6c1' };
+              response = '<Console> Colorblind mode set to: TRITANOMALY';
+            } else if (arg === 'off') {
+              container.style.color = '#00ff66';
+              container.style.backgroundColor = matrixInterval ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.4)';
+              codeColors = { keyword: '#c678dd', string: '#98c379', number: '#d19a66', comment: '#5c6370', text: '#00ff66' };
+              response = '<Console> Colorblind mode disabled. Restored default.';
+            } else {
+              playError();
+              response = '<Console> Unknown mode. Type "colorblind" for options.';
+            }
           }
         } else if (cmdLower === 'ascii') {
           const art = [
