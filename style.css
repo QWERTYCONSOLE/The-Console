@@ -32,13 +32,13 @@ body {
     animation: rainbow-text 8s linear infinite !important;
 }
 @keyframes rainbow-bg {
-    0% { background-color: rgba(42, 0, 0, 0.7); }
-    17% { background-color: rgba(42, 26, 0, 0.7); }
-    33% { background-color: rgba(42, 42, 0, 0.7); }
-    50% { background-color: rgba(0, 42, 0, 0.7); }
-    67% { background-color: rgba(0, 42, 42, 0.7); }
-    83% { background-color: rgba(0, 0, 42, 0.7); }
-    100% { background-color: rgba(42, 0, 0, 0.7); }
+    0% { background-color: rgba(42, 0, 0, 0.4); }
+    17% { background-color: rgba(42, 26, 0, 0.4); }
+    33% { background-color: rgba(42, 42, 0, 0.4); }
+    50% { background-color: rgba(0, 42, 0, 0.4); }
+    67% { background-color: rgba(0, 42, 42, 0.4); }
+    83% { background-color: rgba(0, 0, 42, 0.4); }
+    100% { background-color: rgba(42, 0, 0, 0.4); }
 }
 .rainbow-bg {
     animation: rainbow-bg 10s linear infinite !important;
