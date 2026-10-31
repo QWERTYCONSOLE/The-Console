@@ -39,6 +39,7 @@
     let container = document.createElement('div');
     container.id = 'retro-console-root';
     
+    // Default background is 40% black
     container.style.cssText = `
       position: fixed;
       top: 0;
@@ -261,22 +262,18 @@
         clearInterval(matrixInterval);
         matrixInterval = null;
         matrixCanvas.style.display = 'none';
+        // Restore normal terminal background
+        if (!container.classList.contains('rainbow-mode')) {
+          container.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+        }
         return '<Console> Matrix mode disabled.';
       } else {
-        // Make the canvas actually visible as a full-screen overlay behind the text
-        matrixCanvas.style.cssText = `
-          display: block;
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100vw;
-          height: 100vh;
-          z-index: 999998;
-          pointer-events: none;
-        `;
-
+        matrixCanvas.style.display = 'block';
+        // Make terminal almost fully transparent to show the Matrix
+        container.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+        
         const ctx = matrixCanvas.getContext('2d');
-
+        
         const resizeCanvas = () => {
           matrixCanvas.width = window.innerWidth;
           matrixCanvas.height = window.innerHeight;
@@ -286,42 +283,26 @@
 
         const chars = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?";
         const fontSize = 16;
-        const columns = Math.floor(matrixCanvas.width / fontSize);
-
-        const drops = Array.from({ length: columns }, () => ({
-          y: Math.random() * -50, // Stagger starting positions
-          char: chars[Math.floor(Math.random() * chars.length)]
-        }));
+        const columns = matrixCanvas.width / fontSize;
+        const drops = Array(Math.floor(columns)).fill(1);
 
         matrixInterval = setInterval(() => {
-          // Lighter fade so trails are visible but chars stay readable
           ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
           ctx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
-
+          
+          ctx.fillStyle = "#00ff66";
           ctx.font = fontSize + "px monospace";
 
           for (let i = 0; i < drops.length; i++) {
-            const d = drops[i];
+            const text = chars[Math.floor(Math.random() * chars.length)];
+            ctx.fillText(text, i * fontSize, drops[i] * fontSize);
 
-            // Head character is bright
-            ctx.fillStyle = "#ccffdd";
-            ctx.fillText(d.char, i * fontSize, d.y * fontSize);
-
-            // Randomly morph the character (flicker effect)
-            if (Math.random() > 0.85) {
-              d.char = chars[Math.floor(Math.random() * chars.length)];
+            if (drops[i] * fontSize > matrixCanvas.height && Math.random() > 0.975) {
+              drops[i] = 0;
             }
-
-            // Reset to top when it exits the screen
-            if (d.y * fontSize > matrixCanvas.height && Math.random() > 0.975) {
-              d.y = 0;
-              d.char = chars[Math.floor(Math.random() * chars.length)];
-            }
-
-            d.y++;
+            drops[i]++;
           }
-        }, 50);
-
+        }, 33);
         return '<Console> 🟩 MATRIX MODE ENGAGED 🟩 (Type "matrix" again to disable)';
       }
     }
@@ -800,6 +781,7 @@
       } catch (err) {
         playError();
         throw new Error("Pyodide init failed: " + err.message);
+;
       }
       
       writeLine('<Console> [Python engine ready.]');
@@ -1286,7 +1268,8 @@
           if (container.classList.contains('rainbow-mode')) {
             container.classList.remove('rainbow-mode', 'rainbow-bg');
             container.style.color = '#00ff66';
-            container.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+            // If matrix is on, keep it transparent. Otherwise, normal.
+            container.style.backgroundColor = matrixInterval ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.4)';
             response = '<Console> Rainbow mode disabled.';
           } else {
             container.classList.add('rainbow-mode', 'rainbow-bg');
