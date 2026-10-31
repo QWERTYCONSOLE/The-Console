@@ -45,7 +45,7 @@
       left: 0;
       width: 100vw;
       height: 100vh;
-      background-color: rgba(0, 0, 0, 0.7); 
+      background-color: rgba(0, 0, 0, 0.4); 
       color: #00ff66;
       font-family: 'Courier New', Courier, monospace;
       font-size: 1rem;
