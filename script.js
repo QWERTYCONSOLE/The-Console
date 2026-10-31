@@ -276,28 +276,37 @@
         const chars = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?";
         const fontSize = 16;
         const columns = matrixCanvas.width / fontSize;
-        const drops = Array(Math.floor(columns)).fill(1);
+        
+        // Store objects with position and character
+        const drops = Array.from({ length: Math.floor(columns) }, () => ({ 
+          y: 1, 
+          char: chars[Math.floor(Math.random() * chars.length)] 
+        }));
 
         matrixInterval = setInterval(() => {
-          // Fade the previous frames
-          ctx.fillStyle = "rgba(0, 0, 0, 0.03)";
+          // Darken the background
+          ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
           ctx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
           
           ctx.fillStyle = "#00ff66";
           ctx.font = fontSize + "px monospace";
 
           for (let i = 0; i < drops.length; i++) {
-            // Pick a new random character every frame
-            const text = chars[Math.floor(Math.random() * chars.length)];
-            
-            // Draw it at the current position
-            ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+            // Draw the current character
+            ctx.fillText(drops[i].char, i * fontSize, drops[i].y * fontSize);
 
-            // Reset to the top if it hits the bottom
-            if (drops[i] * fontSize > matrixCanvas.height && Math.random() > 0.975) {
-              drops[i] = 0;
+            // Randomly change the character as it falls for the flicker effect
+            if (Math.random() > 0.9) {
+              drops[i].char = chars[Math.floor(Math.random() * chars.length)];
             }
-            drops[i]++;
+
+            // Reset to top if it hits the bottom
+            if (drops[i].y * fontSize > matrixCanvas.height && Math.random() > 0.975) {
+              drops[i].y = 0;
+              drops[i].char = chars[Math.floor(Math.random() * chars.length)];
+            }
+            
+            drops[i].y++;
           }
         }, 33);
         return '<Console> 🟩 MATRIX MODE ENGAGED 🟩 (Type "matrix" again to disable)';
