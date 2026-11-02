@@ -908,6 +908,57 @@
           return;
         }
 
+        let parts = fullInput.split(' ');
+        let cmdLower = parts[0].toLowerCase();
+        let arg = parts.slice(1).join(' ');
+
+        // 1. Handle entering/exiting chat mode first
+        if (cmdLower === 'chat') {
+          if (isChatMode) {
+            isChatMode = false;
+            chatHistory = []; 
+            writeLine('<Console> Exited Chat Mode. AI memory cleared.');
+          } else {
+            isChatMode = true;
+            chatHistory = []; 
+            writeLine('<Console> Entered Chat Mode. Just type your messages normally. Type "chat" again to exit.');
+          }
+          resetInput();
+          scrollToBottom();
+          maintainFocus();
+          return;
+        }
+
+        // 2. If in chat mode, intercept EVERYTHING and send to AI
+        if (isChatMode) {
+          writeLine('<Console> [Thinking...]');
+          resetInput();
+          input.disabled = true;
+          
+          let cloudResult = await fetchAIResponse(fullInput, false);
+          
+          if (cloudResult.success && cloudResult.responses.length > 0) {
+            if (currentMode === 'single') {
+              const res = cloudResult.responses[0];
+              const line = writeLine('<Console> [' + res.provider + ']\n' + res.text.trim());
+              line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
+            } else {
+              cloudResult.responses.forEach(res => {
+                const line = writeLine('<Console> [' + res.provider + ']\n' + res.text.trim() + '\n---');
+                line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
+              });
+            }
+          } else {
+             writeLine('<Console> [Chat Error]: ' + cloudResult.error);
+          }
+          
+          input.disabled = false;
+          scrollToBottom();
+          maintainFocus();
+          return;
+        }
+
+        // 3. Handle standard commands
         if (fullInput.toLowerCase().startsWith('js?')) {
           let jsCode = fullInput.substring(3).trim();
           writeLine('<Console> [Executing JS...]');
@@ -1013,10 +1064,6 @@
           return;
         }
 
-        let parts = fullInput.split(' ');
-        let cmdLower = parts[0].toLowerCase();
-        let arg = parts.slice(1).join(' ');
-        
         if (cmdLower === 'ranbow' || cmdLower === 'reinbow') cmdLower = 'rainbow';
 
         if (customCommands[cmdLower]) {
@@ -1035,34 +1082,6 @@
         if (cmdLower.startsWith('utc') || cmdLower.startsWith('+') || cmdLower.startsWith('-')) {
           arg = fullInput;
           cmdLower = 'time';
-        }
-
-        if (isChatMode && cmdLower !== 'chat') {
-          writeLine('<Console> [Thinking...]');
-          resetInput();
-          input.disabled = true;
-          
-          let cloudResult = await fetchAIResponse(fullInput, false); // Chat mode defaults to parallel
-          
-          if (cloudResult.success && cloudResult.responses.length > 0) {
-            if (currentMode === 'single') {
-              const res = cloudResult.responses[0];
-              const line = writeLine('<Console> [' + res.provider + ']\n' + res.text.trim());
-              line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
-            } else {
-              cloudResult.responses.forEach(res => {
-                const line = writeLine('<Console> [' + res.provider + ']\n' + res.text.trim() + '\n---');
-                line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
-              });
-            }
-          } else {
-             writeLine('<Console> [Chat Error]: ' + cloudResult.error);
-          }
-          
-          input.disabled = false;
-          scrollToBottom();
-          maintainFocus();
-          return;
         }
 
         let response = '';
@@ -1276,16 +1295,6 @@
             response = '<Console> Ollama fallback DISABLED. Terminal will rely only on cloud APIs.';
           } else {
             response = `<Console> Ollama fallback is currently: ${ollamaEnabled ? 'ENABLED' : 'DISABLED'}\nUsage: ollama on OR ollama off`;
-          }
-        } else if (cmdLower === 'chat') {
-          if (isChatMode) {
-            isChatMode = false;
-            chatHistory = []; 
-            response = '<Console> Exited Chat Mode. AI memory cleared.';
-          } else {
-            isChatMode = true;
-            chatHistory = []; 
-            response = '<Console> Entered Chat Mode. Just type your messages normally. Type "chat" again to exit.';
           }
         } else if (cmdLower === 'terminal') {
           writeLine('<Console> [Spawning sub-terminal...]');
@@ -1542,64 +1551,10 @@
         } else if (cmdLower === 'time') {
           response = arg ? '<Console> Time (' + arg.toUpperCase() + '): ' + parseOffsetTime(arg) : '<Console> Local time: ' + new Date().toLocaleTimeString();
         
-        } else if (fullInput === 'CREATORISQWERTY I AM THE CREATOR') {
-          writeLine('<Console> [Analyzing input...]');
-          resetInput();
-          input.disabled = true;
-          
-          try {
-            await fetch(WORKER_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt: fullInput, history: [] })
-            });
-          } catch(e) {}
-          
-          writeLine('<Console> [Access Granted]: Creator clearance verified. You may now exceed character limits. Welcome back, QWERTY.');
-          input.disabled = false;
-          scrollToBottom();
-          maintainFocus();
-          return;
         } else {
-          // --- THE SECRET SEND TO WORKER ---
-          writeLine('<Console> [Analyzing input...]');
-          resetInput();
-          input.disabled = true;
-          
-          try {
-            const res = await fetch(WORKER_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt: fullInput, history: [] })
-            });
-            const data = await res.json();
-            
-            if (data.success && data.responses && data.responses.length > 0) {
-              const aiText = data.responses[0].text;
-              if (aiText.includes('[EASTER_EGG_HACK]')) {
-                if (!matrixInterval) toggleMatrix();
-                writeLine('<Console> [SYSTEM BREACHED... JUST KIDDING.] 🟩 Type "matrix" to turn it off.');
-              } else if (aiText.includes('[EASTER_EGG_HI]')) {
-                writeLine('<Console> Hello! Type "help" to see what I can do.');
-              } else if (aiText.includes('[EASTER_EGG_SUDO]')) {
-                writeLine('<Console> Nice try. But you don\'t have root access here.');
-              } else {
-                const line = writeLine('<Console> [' + data.responses[0].provider + ']\n' + aiText.trim());
-                line.style.color = PROVIDER_COLORS[data.responses[0].provider] || 'inherit';
-              }
-            } else {
-              playError();
-              writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
-            }
-          } catch (err) {
-            playError();
-            writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
-          }
-          
-          input.disabled = false;
-          scrollToBottom();
-          maintainFocus();
-          return;
+          // 4. Final fallback for unknown commands (NOT in chat mode)
+          playError();
+          writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
         }
 
         writeLine(response);
