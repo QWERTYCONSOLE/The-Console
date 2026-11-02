@@ -1581,8 +1581,9 @@
               } else if (aiText.includes('[EASTER_EGG_SUDO]')) {
                 writeLine('<Console> Nice try. But you don\'t have root access here.');
               } else {
-                const line = writeLine('<Console> [' + data.responses[0].provider + ']\n' + aiText.trim());
-                line.style.color = PROVIDER_COLORS[data.responses[0].provider] || 'inherit';
+                // If it's NOT an easter egg, throw the error!
+                playError();
+                writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
               }
             } else {
               playError();
