@@ -122,7 +122,8 @@
       'groq-120b': '#f97316',
       'groq-20b': '#ec4899',
       'groq-safety': '#eab308',
-      'gemini': '#3b82f6'
+      'gemini': '#3b82f6',
+      'cloudflare-ai': '#f59e0b'
     };
 
     let codeColors = {
