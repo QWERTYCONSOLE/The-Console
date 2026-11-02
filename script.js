@@ -92,7 +92,6 @@
       }
     }
 
-    // Unlock audio on first keystroke
     input.addEventListener('input', function unlockAudio() {
       if (!audioUnlocked) {
         errorSound.play().then(() => {
@@ -108,6 +107,8 @@
     let ollamaEnabled = false;
     let linuxWrapper = null; 
     let matrixInterval = null;
+    let chatHistory = []; 
+    let isChatMode = false;
 
     let customCommands = {};
     try {
@@ -668,6 +669,7 @@
 
       writeLine('\n--- [LOCAL OLLAMA] ---');
       writeLine(`Ollama Enabled: ${ollamaEnabled ? 'YES' : 'NO'}`);
+      writeLine(`Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/`);
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -723,14 +725,25 @@
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 25000); 
+        
+        chatHistory.push({ role: 'user', content: promptText });
+
         const response = await fetch(WORKER_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
-          body: JSON.stringify({ prompt: promptText }) });
+          body: JSON.stringify({ 
+            prompt: promptText,
+            history: chatHistory 
+          }) 
+        });
         clearTimeout(timeoutId);
         const data = await response.json();
+        
         if (response.ok && data.success) {
+          if (data.responses && data.responses.length > 0) {
+             chatHistory.push({ role: 'assistant', content: data.responses[0].text });
+          }
           return { success: true, responses: data.responses };
         } else {
           playError();
@@ -813,6 +826,28 @@
     });
 
     input.addEventListener('keydown', async (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        let currentText = input.value.trim().toLowerCase();
+        if (currentText === '') return;
+
+        const allCommands = [
+          'help', 'test', 'zones', 'weather', 'define', 'calc', 'password', 
+          'top', 'matrix', 'save', 'copy', 'whereami', 'share', 'credits', 
+          'clear', 'history', 'restore', 'info', 'mode', 'ollama', 'terminal', 
+          'linux', 'exit', 'sandbox', 'file', 'note', 'notes', 'wipe', 
+          'picker', 'theme', 'rainbow', 'colorblind', 'ascii', 'flip', 
+          'roll', 'echo', 'lines', 'chat', 'js?', 'py?'
+        ];
+
+        const match = allCommands.find(cmd => cmd.startsWith(currentText));
+        if (match) {
+          input.value = match + ' '; 
+          autoResize();
+        }
+        return;
+      }
+
       if (e.key === 'ArrowUp') {
         e.preventDefault();
         if (commandLog.length > 0 && historyIndex < commandLog.length - 1) {
@@ -997,6 +1032,26 @@
           cmdLower = 'time';
         }
 
+        if (isChatMode && cmdLower !== 'chat') {
+          writeLine('<Console> [Thinking...]');
+          resetInput();
+          input.disabled = true;
+          
+          let cloudResult = await fetchAIResponse(fullInput);
+          
+          if (cloudResult.success && cloudResult.responses.length > 0) {
+             const line = writeLine('<Console> [' + cloudResult.responses[0].provider + ']\n' + cloudResult.responses[0].text.trim());
+             line.style.color = PROVIDER_COLORS[cloudResult.responses[0].provider] || 'inherit';
+          } else {
+             writeLine('<Console> [Chat Error]: ' + cloudResult.error);
+          }
+          
+          input.disabled = false;
+          scrollToBottom();
+          maintainFocus();
+          return;
+        }
+
         let response = '';
         if (cmdLower === 'test') {
           resetInput();
@@ -1053,6 +1108,7 @@
                      ' - info (runs a full system check of APIs, engines, OS, and hardware)\n' +
                      ' - mode single / mode multi (toggle AI response behavior)\n' +
                      ' - ollama on / ollama off (toggle local CPU AI fallback)\n' +
+                     ' - chat (starts a persistent conversation with AI memory)\n' +
                      ' - terminal (spawns another terminal inside this one)\n' +
                      ' - linux (boots a tiny Linux OS inside a canvas window)\n' +
                      ' - exit (closes the Linux emulator window)\n' +
@@ -1073,7 +1129,8 @@
                      ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
                      ' - JS? [code] (run live JavaScript directly in browser)\n' +
                      ' - PY? [code] (run live Python via Pyodide)\n' +
-                     ' - [offset] (type any offset directly, e.g. UTC+02:00 or -5)';
+                     ' - [offset] (type any offset directly, e.g. UTC+02:00 or -5)\n\n' +
+                     'Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/';
         } else if (cmdLower === 'copy') {
           if (!arg) {
             response = '<Console> Usage: copy [text]';
@@ -1206,6 +1263,16 @@
             response = '<Console> Ollama fallback DISABLED. Terminal will rely only on cloud APIs.';
           } else {
             response = `<Console> Ollama fallback is currently: ${ollamaEnabled ? 'ENABLED' : 'DISABLED'}\nUsage: ollama on OR ollama off`;
+          }
+        } else if (cmdLower === 'chat') {
+          if (isChatMode) {
+            isChatMode = false;
+            chatHistory = []; 
+            response = '<Console> Exited Chat Mode. AI memory cleared.';
+          } else {
+            isChatMode = true;
+            chatHistory = []; 
+            response = '<Console> Entered Chat Mode. Just type your messages normally. Type "chat" again to exit.';
           }
         } else if (cmdLower === 'terminal') {
           writeLine('<Console> [Spawning sub-terminal...]');
