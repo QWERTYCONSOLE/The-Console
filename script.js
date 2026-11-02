@@ -77,9 +77,39 @@
     let commandLog = [];
     let archivedSessions = window.__CONSOLE_HISTORY__;
     let historyIndex = -1;
+
+    // Persistent cross-reload command history (separate from the per-session commandLog).
+    const CMD_HISTORY_KEY = 'retro_cmd_history';
+    const CMD_HISTORY_MAX = 200;
+    let persistentHistory = [];
+    try {
+      persistentHistory = JSON.parse(localStorage.getItem(CMD_HISTORY_KEY) || '[]');
+      if (!Array.isArray(persistentHistory)) persistentHistory = [];
+    } catch (e) { persistentHistory = []; }
+
+    function pushPersistentHistory(cmd) {
+      if (!cmd) return;
+      if (persistentHistory[persistentHistory.length - 1] === cmd) return; // dedupe consecutive
+      persistentHistory.push(cmd);
+      if (persistentHistory.length > CMD_HISTORY_MAX) persistentHistory.shift();
+      try { localStorage.setItem(CMD_HISTORY_KEY, JSON.stringify(persistentHistory)); } catch (e) {}
+    }
+
     const WORKER_URL = 'https://console-ai-js.qwerty12345-1o1.workers.dev';
     
-    const errorSound = new Audio('./error.mp3');
+    // Resolve error.mp3 against the SCRIPT's origin, not the host page's origin,
+    // so the sound works when the terminal is injected on a third-party page.
+    const SCRIPT_ORIGIN = (function () {
+      try {
+        const cur = document.currentScript && document.currentScript.src;
+        if (cur) return new URL(cur).origin;
+      } catch (e) {}
+      const s = document.querySelector('script[src*="script.js"]');
+      if (s && s.src) return new URL(s.src).origin;
+      return window.location.origin;
+    })();
+
+    const errorSound = new Audio(SCRIPT_ORIGIN + '/error.mp3');
     errorSound.volume = 0.5;
     errorSound.preload = 'auto';
     let audioUnlocked = false;
@@ -183,6 +213,14 @@
         escaped = escaped.replace(/(#.*)/g, `<span style="color: ${codeColors.comment}; font-style: italic;">$1</span>`);
       }
       return escaped;
+    }
+
+    function formatAIResponse(provider, text) {
+      let out = String(text).trim();
+      if (provider === 'groq-safety') {
+        out += '\n[DISCLAIMER: This response came from the Safety Model. It is designed to check inputs and may not answer complex prompts perfectly.]';
+      }
+      return '<Console> [' + provider + ']\n' + out;
     }
 
     function openFilePicker() {
@@ -563,9 +601,10 @@
           } catch (err) {
             playError();
             outputScreen.textContent += '[Python Error]: ' + err.message + '\n';
+          } finally {
+            input.disabled = false;
+            maintainFocus();
           }
-          input.disabled = false;
-          maintainFocus();
         }
         outputScreen.scrollTop = outputScreen.scrollHeight;
         scrollToBottom();
@@ -624,9 +663,10 @@
     ];
 
     function parseOffsetTime(offsetStr) {
-      let str = offsetStr.toUpperCase().replace('UTC', '').replace('GMT', '').trim();
-      if (str === '' || str === '0' || str === '+0' || str === '-0' || str === '+00:00' || str === '00:00') {
-        return new Date().toLocaleTimeString('en-US', { timeZone: 'UTC' });
+      let str = String(offsetStr).toUpperCase().replace('UTC', '').replace('GMT', '').trim();
+      // Only accept +/-HH, +/-HH:MM, +/-HH.MM, or bare digits. Otherwise treat as UTC.
+      if (!/^[+-]?\d{1,2}([:.]\d{2})?$/.test(str)) {
+        return new Date().toLocaleTimeString('en-US', { timeZone: 'UTC' }) + ' (UTC — invalid offset ignored)';
       }
       let sign = 1;
       if (str.startsWith('-')) { sign = -1; str = str.substring(1); }
@@ -823,6 +863,49 @@
 
     function maintainFocus() { if (!input.disabled) input.focus(); }
     setTimeout(maintainFocus, 100);
+
+    // One-shot privacy gate. Does NOT disable the input (disabled inputs don't
+    // receive keydown). Instead, installs a capture-phase handler that runs BEFORE
+    // the main Enter handler and stops propagation until resolved.
+    let privacyGateActive = false;
+    function requirePrivacyConsent(subject, onAgree) {
+      if (privacyAgreed) { onAgree(); return; }
+      if (privacyGateActive) return;
+      privacyGateActive = true;
+
+      writeLine('<Console> [WARNING - PRIVACY ADVISORY]');
+      writeLine('The "' + subject + '" command will display sensitive system information (OS, hardware, browser details).');
+      writeLine('If you are streaming, recording, or screen-sharing, please PAUSE your stream or END it now.');
+      writeLine('Type "agree" to continue, or "end" to cancel.');
+      scrollToBottom();
+
+      const handler = (evt) => {
+        if (evt.key !== 'Enter') return;
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+
+        const val = input.value.trim().toLowerCase();
+        if (val === 'agree') {
+          privacyAgreed = true;
+          privacyGateActive = false;
+          input.removeEventListener('keydown', handler, true);
+          writeLine('<Console> [System]: Privacy agreement accepted. Starting ' + subject + '...');
+          resetInput();
+          onAgree();
+        } else if (val === 'end') {
+          privacyGateActive = false;
+          input.removeEventListener('keydown', handler, true);
+          writeLine('<Console> [System]: ' + subject + ' cancelled.');
+          resetInput();
+          maintainFocus();
+        } else {
+          writeLine('<Console> [System]: Please type "agree" to continue or "end" to cancel.');
+          resetInput();
+        }
+      };
+      input.addEventListener('keydown', handler, true);
+      maintainFocus();
+    }
     
     container.addEventListener('click', (e) => {
       if (window.getSelection().toString().length > 0) return; 
@@ -856,9 +939,10 @@
 
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        if (commandLog.length > 0 && historyIndex < commandLog.length - 1) {
+        if (persistentHistory.length === 0) return;
+        if (historyIndex < persistentHistory.length - 1) {
           historyIndex++;
-          input.value = commandLog[commandLog.length - 1 - historyIndex].cmd;
+          input.value = persistentHistory[persistentHistory.length - 1 - historyIndex];
           autoResize();
         }
         return;
@@ -867,7 +951,7 @@
         e.preventDefault();
         if (historyIndex > 0) {
           historyIndex--;
-          input.value = commandLog[commandLog.length - 1 - historyIndex].cmd;
+          input.value = persistentHistory[persistentHistory.length - 1 - historyIndex];
           autoResize();
         } else if (historyIndex === 0) {
           historyIndex = -1;
@@ -893,6 +977,7 @@
         if (!sessionStartTime) sessionStartTime = nowFormatted;
 
         commandLog.push({ cmd: fullInput, time: nowFormatted });
+        pushPersistentHistory(fullInput);
         writeLine('<QWERTY> ' + fullInput);
 
         if (fullInput.toLowerCase() === 'exit') {
@@ -937,20 +1022,30 @@
           input.disabled = true;
           
           let cloudResult = await fetchAIResponse(fullInput, false);
-          
+
           if (cloudResult.success && cloudResult.responses.length > 0) {
             if (currentMode === 'single') {
               const res = cloudResult.responses[0];
-              const line = writeLine('<Console> [' + res.provider + ']\n' + res.text.trim());
+              const line = writeLine(formatAIResponse(res.provider, res.text));
               line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
             } else {
               cloudResult.responses.forEach(res => {
-                const line = writeLine('<Console> [' + res.provider + ']\n' + res.text.trim() + '\n---');
+                const line = writeLine(formatAIResponse(res.provider, res.text) + '\n---');
                 line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
               });
             }
+          } else if (ollamaEnabled) {
+            writeLine('<Console> [Chat Error]: ' + (cloudResult.error || 'cloud failed') + ' — trying local Ollama...');
+            const ollamaResult = await callOllama(fullInput);
+            if (ollamaResult.success) {
+              const line = writeLine('<Console> [ollama]\n' + ollamaResult.text.trim());
+              line.style.color = PROVIDER_COLORS['ollama'];
+            } else {
+              writeLine('<Console> [Ollama Error]: ' + ollamaResult.error);
+            }
           } else {
              writeLine('<Console> [Chat Error]: ' + cloudResult.error);
+             writeLine('<Console> Tip: type "ollama on" to enable a local fallback.');
           }
           
           input.disabled = false;
@@ -1034,7 +1129,7 @@
           if (cloudResult.success && cloudResult.responses.length > 0) {
             if (currentMode === 'single') {
               const res = cloudResult.responses[0];
-              const line = writeLine('<Console> [' + res.provider + ']\n' + res.text.trim() + '\n---');
+              const line = writeLine(formatAIResponse(res.provider, res.text) + '\n---');
               line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
             } else {
               cloudResult.responses.forEach(res => {
@@ -1046,7 +1141,7 @@
                   if (!matrixInterval) toggleMatrix();
                   writeLine('<Console> [SYSTEM BREACHED... JUST KIDDING.] 🟩 Type "matrix" to turn it off.');
                 } else {
-                  const line = writeLine('<Console> [' + res.provider + ']\n' + res.text.trim() + '\n---');
+                  const line = writeLine(formatAIResponse(res.provider, res.text) + '\n---');
                   line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
                 }
               });
@@ -1097,34 +1192,11 @@
         let response = '';
         if (cmdLower === 'test') {
           if (!privacyAgreed) {
-            writeLine('<Console> [WARNING - PRIVACY ADVISORY]');
-            writeLine('The "test" command will display sensitive system information (OS, hardware, browser details).');
-            writeLine('If you are streaming, recording, or screen-sharing, please PAUSE your stream or END it now.');
-            writeLine('Type "agree" to continue, or "end" to cancel.');
-            
-            const handleAgreement = async (evt) => {
-              if (evt.key === 'Enter') {
-                let val = input.value.trim().toLowerCase();
-                if (val === 'agree') {
-                  privacyAgreed = true;
-                  writeLine('<Console> [System]: Privacy agreement accepted. Starting test...');
-                  resetInput();
-                  input.removeEventListener('keydown', handleAgreement);
-                  input.disabled = false;
-                  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); 
-                } else if (val === 'end') {
-                  writeLine('<Console> [System]: Test cancelled.');
-                  resetInput();
-                  input.removeEventListener('keydown', handleAgreement);
-                  input.disabled = false;
-                } else {
-                  writeLine('<Console> [System]: Please type "agree" to continue or "end" to cancel.');
-                  resetInput();
-                }
-              }
-            };
-            input.disabled = true;
-            input.addEventListener('keydown', handleAgreement);
+            requirePrivacyConsent('test', () => {
+              input.value = 'test';
+              autoResize();
+              input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+            });
             return;
           }
 
@@ -1206,7 +1278,8 @@
                      ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
                      ' - JS? [code] (run live JavaScript directly in browser)\n' +
                      ' - PY? [code] (run live Python via Pyodide)\n' +
-                     ' - [offset] (type any offset directly, e.g. UTC+02:00 or -5)\n\n' +
+                     ' - time (shows local time; "time UTC+5" or just "UTC+5" / "-5" for an offset)\n' +
+                     ' - [offset] (shorthand for "time <offset>", e.g. "UTC+02:00" or "-5")\n\n' +
                      'Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/';
         } else if (cmdLower === 'copy') {
           if (!arg) {
@@ -1275,34 +1348,11 @@
           response = toggleMatrix();
         } else if (cmdLower === 'top') {
           if (!privacyAgreed) {
-            writeLine('<Console> [WARNING - PRIVACY ADVISORY]');
-            writeLine('The "top" command will display sensitive system information (OS, hardware, browser details).');
-            writeLine('If you are streaming, recording, or screen-sharing, please PAUSE your stream or END it now.');
-            writeLine('Type "agree" to continue, or "end" to cancel.');
-            
-            const handleAgreement = async (evt) => {
-              if (evt.key === 'Enter') {
-                let val = input.value.trim().toLowerCase();
-                if (val === 'agree') {
-                  privacyAgreed = true;
-                  writeLine('<Console> [System]: Privacy agreement accepted. Starting monitor...');
-                  resetInput();
-                  input.removeEventListener('keydown', handleAgreement);
-                  input.disabled = false;
-                  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); 
-                } else if (val === 'end') {
-                  writeLine('<Console> [System]: Monitor cancelled.');
-                  resetInput();
-                  input.removeEventListener('keydown', handleAgreement);
-                  input.disabled = false;
-                } else {
-                  writeLine('<Console> [System]: Please type "agree" to continue or "end" to cancel.');
-                  resetInput();
-                }
-              }
-            };
-            input.disabled = true;
-            input.addEventListener('keydown', handleAgreement);
+            requirePrivacyConsent('top', () => {
+              input.value = 'top';
+              autoResize();
+              input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+            });
             return;
           }
           resetInput();
@@ -1389,48 +1439,31 @@
           return;
         } else if (cmdLower === 'info') {
           if (!privacyAgreed) {
-            writeLine('<Console> [WARNING - PRIVACY ADVISORY]');
-            writeLine('The "info" command will display sensitive system information (OS, hardware, browser details).');
-            writeLine('If you are streaming, recording, or screen-sharing, please PAUSE your stream or END it now.');
-            writeLine('Type "agree" to continue, or "end" to cancel.');
-            
-            const handleAgreement = async (evt) => {
-              if (evt.key === 'Enter') {
-                let val = input.value.trim().toLowerCase();
-                if (val === 'agree') {
-                  privacyAgreed = true;
-                  writeLine('<Console> [System]: Privacy agreement accepted. Gathering info...');
-                  resetInput();
-                  input.removeEventListener('keydown', handleAgreement);
-                  input.disabled = false;
-                  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); 
-                } else if (val === 'end') {
-                  writeLine('<Console> [System]: Info cancelled.');
-                  resetInput();
-                  input.removeEventListener('keydown', handleAgreement);
-                  input.disabled = false;
-                } else {
-                  writeLine('<Console> [System]: Please type "agree" to continue or "end" to cancel.');
-                  resetInput();
-                }
-              }
-            };
-            input.disabled = true;
-            input.addEventListener('keydown', handleAgreement);
+            requirePrivacyConsent('info', () => {
+              input.value = 'info';
+              autoResize();
+              input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+            });
             return;
           }
           resetInput();
           input.disabled = true;
-          await runInfo();
-          input.disabled = false;
-          maintainFocus();
+          try {
+            await runInfo();
+          } finally {
+            input.disabled = false;
+            maintainFocus();
+          }
           return;
         } else if (cmdLower === 'linux') {
           resetInput();
           input.disabled = true;
-          await runLinux();
-          input.disabled = false;
-          maintainFocus();
+          try {
+            await runLinux();
+          } finally {
+            input.disabled = false;
+            maintainFocus();
+          }
           return;
         } else if (cmdLower === 'sandbox') {
           resetInput();
@@ -1679,7 +1712,6 @@
               } else if (aiText.includes('[EASTER_EGG_SUDO]')) {
                 writeLine('<Console> Nice try. But you don\'t have root access here.');
               } else {
-                // If it's NOT an easter egg, throw the error!
                 playError();
                 writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
               }
