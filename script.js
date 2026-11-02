@@ -1037,8 +1037,17 @@
               line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
             } else {
               cloudResult.responses.forEach(res => {
-                const line = writeLine('<Console> [' + res.provider + ']\n' + res.text.trim() + '\n---');
-                line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
+                if (res.text.includes('[EASTER_EGG_HI]')) {
+                  writeLine('<Console> Hello! Type "help" to see what I can do.');
+                } else if (res.text.includes('[EASTER_EGG_SUDO]')) {
+                  writeLine('<Console> Nice try. But you don\'t have root access here.');
+                } else if (res.text.includes('[EASTER_EGG_HACK]')) {
+                  if (!matrixInterval) toggleMatrix();
+                  writeLine('<Console> [SYSTEM BREACHED... JUST KIDDING.] 🟩 Type "matrix" to turn it off.');
+                } else {
+                  const line = writeLine('<Console> [' + res.provider + ']\n' + res.text.trim() + '\n---');
+                  line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
+                }
               });
             }
           } else if (ollamaEnabled) {
@@ -1553,8 +1562,41 @@
         
         } else {
           // 4. Final fallback for unknown commands (NOT in chat mode)
-          playError();
-          writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
+          try {
+            const res = await fetch(WORKER_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: fullInput, history: [] })
+            });
+            const data = await res.json();
+            
+            if (data.success && data.responses && data.responses.length > 0) {
+              const aiText = data.responses[0].text;
+              
+              if (aiText.includes('[EASTER_EGG_HACK]')) {
+                if (!matrixInterval) toggleMatrix();
+                writeLine('<Console> [SYSTEM BREACHED... JUST KIDDING.] 🟩 Type "matrix" to turn it off.');
+              } else if (aiText.includes('[EASTER_EGG_HI]')) {
+                writeLine('<Console> Hello! Type "help" to see what I can do.');
+              } else if (aiText.includes('[EASTER_EGG_SUDO]')) {
+                writeLine('<Console> Nice try. But you don\'t have root access here.');
+              } else {
+                const line = writeLine('<Console> [' + data.responses[0].provider + ']\n' + aiText.trim());
+                line.style.color = PROVIDER_COLORS[data.responses[0].provider] || 'inherit';
+              }
+            } else {
+              playError();
+              writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
+            }
+          } catch (err) {
+            playError();
+            writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
+          }
+          
+          resetInput();
+          scrollToBottom();
+          maintainFocus();
+          return;
         }
 
         writeLine(response);
