@@ -108,6 +108,7 @@
     let matrixInterval = null;
     let chatHistory = []; 
     let isChatMode = false;
+    let privacyAgreed = false;
 
     let customCommands = {};
     try {
@@ -1095,27 +1096,62 @@
 
         let response = '';
         if (cmdLower === 'test') {
+          if (!privacyAgreed) {
+            writeLine('<Console> [WARNING - PRIVACY ADVISORY]');
+            writeLine('The "test" command will display sensitive system information (OS, hardware, browser details).');
+            writeLine('If you are streaming, recording, or screen-sharing, please PAUSE your stream or END it now.');
+            writeLine('Type "agree" to continue, or "end" to cancel.');
+            
+            const handleAgreement = async (evt) => {
+              if (evt.key === 'Enter') {
+                let val = input.value.trim().toLowerCase();
+                if (val === 'agree') {
+                  privacyAgreed = true;
+                  writeLine('<Console> [System]: Privacy agreement accepted. Starting test...');
+                  resetInput();
+                  input.removeEventListener('keydown', handleAgreement);
+                  input.disabled = false;
+                  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); 
+                } else if (val === 'end') {
+                  writeLine('<Console> [System]: Test cancelled.');
+                  resetInput();
+                  input.removeEventListener('keydown', handleAgreement);
+                  input.disabled = false;
+                } else {
+                  writeLine('<Console> [System]: Please type "agree" to continue or "end" to cancel.');
+                  resetInput();
+                }
+              }
+            };
+            input.disabled = true;
+            input.addEventListener('keydown', handleAgreement);
+            return;
+          }
+
           resetInput();
           input.disabled = true;
-          writeLine('<Console> [STARTING AUTOMATED TEST SEQUENCE...]');
+          writeLine('<Console> [STARTING MEGA-TEST SEQUENCE...]');
           
           const simulateType = async (text) => {
             input.value = text;
             input.dispatchEvent(new Event('input', { bubbles: true }));
             const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
             input.dispatchEvent(event);
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 800)); 
           };
 
           const tour = [
-            "help", "credits", "lines", "zones", "time", "utc+5", 
-            "ascii", "flip", "roll", "echo Auto-tour is running!", 
-            "calc 5 * 5", "password 16",
-            "note Auto-generated note", "notes", 
-            "define hello", "weather London,UK",
-            "js? const arr = [1,2,3,4,5]; arr.map(x => x * 10)", 
-            "py? import math; print(math.factorial(15))", 
-            "info", "mode single", "mode multi", "credits", "lines"
+            "help", "credits", "lines", "zones", "time", "utc+5", "utc-8",
+            "matrix", "matrix", "rainbow", "rainbow", "colorblind deuteranopia", 
+            "matrix", "matrix", "colorblind off", "theme #ff0000 #000000", "theme #00ff66 #0d0d0d",
+            "ascii", "flip", "roll 20", "echo Mega-test in progress!", "calc 5 * 5 * 5",
+            "password 6", "note Mega-test note 1", "notes", "wipe", "notes",
+            "js? const arr = [1,2,3,4,5]; arr.map(x => x * 10)",
+            "js? function fib(n) { return n < 2 ? n : fib(n-1) + fib(n-2); } fib(10)",
+            "py? import math; print(math.factorial(15))",
+            "py? def greet(name): return f'Hello {name}'; print(greet('QWERTY'))",
+            "mode single", "*what is 2+2?*", "mode multi", "*what is 2+2?*",
+            "info", "credits", "lines"
           ];
 
           for (let i = 0; i < tour.length; i++) {
@@ -1123,7 +1159,7 @@
             await simulateType(tour[i]);
           }
           
-          writeLine("<Console> [AUTO-TOUR COMPLETE]");
+          writeLine("<Console> [MEGA-TEST COMPLETE]");
           input.disabled = false;
           maintainFocus();
           return;
@@ -1238,6 +1274,37 @@
         } else if (cmdLower === 'matrix') {
           response = toggleMatrix();
         } else if (cmdLower === 'top') {
+          if (!privacyAgreed) {
+            writeLine('<Console> [WARNING - PRIVACY ADVISORY]');
+            writeLine('The "top" command will display sensitive system information (OS, hardware, browser details).');
+            writeLine('If you are streaming, recording, or screen-sharing, please PAUSE your stream or END it now.');
+            writeLine('Type "agree" to continue, or "end" to cancel.');
+            
+            const handleAgreement = async (evt) => {
+              if (evt.key === 'Enter') {
+                let val = input.value.trim().toLowerCase();
+                if (val === 'agree') {
+                  privacyAgreed = true;
+                  writeLine('<Console> [System]: Privacy agreement accepted. Starting monitor...');
+                  resetInput();
+                  input.removeEventListener('keydown', handleAgreement);
+                  input.disabled = false;
+                  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); 
+                } else if (val === 'end') {
+                  writeLine('<Console> [System]: Monitor cancelled.');
+                  resetInput();
+                  input.removeEventListener('keydown', handleAgreement);
+                  input.disabled = false;
+                } else {
+                  writeLine('<Console> [System]: Please type "agree" to continue or "end" to cancel.');
+                  resetInput();
+                }
+              }
+            };
+            input.disabled = true;
+            input.addEventListener('keydown', handleAgreement);
+            return;
+          }
           resetInput();
           runTop();
           return;
@@ -1321,6 +1388,37 @@
           resetInput();
           return;
         } else if (cmdLower === 'info') {
+          if (!privacyAgreed) {
+            writeLine('<Console> [WARNING - PRIVACY ADVISORY]');
+            writeLine('The "info" command will display sensitive system information (OS, hardware, browser details).');
+            writeLine('If you are streaming, recording, or screen-sharing, please PAUSE your stream or END it now.');
+            writeLine('Type "agree" to continue, or "end" to cancel.');
+            
+            const handleAgreement = async (evt) => {
+              if (evt.key === 'Enter') {
+                let val = input.value.trim().toLowerCase();
+                if (val === 'agree') {
+                  privacyAgreed = true;
+                  writeLine('<Console> [System]: Privacy agreement accepted. Gathering info...');
+                  resetInput();
+                  input.removeEventListener('keydown', handleAgreement);
+                  input.disabled = false;
+                  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); 
+                } else if (val === 'end') {
+                  writeLine('<Console> [System]: Info cancelled.');
+                  resetInput();
+                  input.removeEventListener('keydown', handleAgreement);
+                  input.disabled = false;
+                } else {
+                  writeLine('<Console> [System]: Please type "agree" to continue or "end" to cancel.');
+                  resetInput();
+                }
+              }
+            };
+            input.disabled = true;
+            input.addEventListener('keydown', handleAgreement);
+            return;
+          }
           resetInput();
           input.disabled = true;
           await runInfo();
