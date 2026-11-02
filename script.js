@@ -724,7 +724,7 @@
       scrollToBottom();
     }
 
-    async function fetchAIResponse(promptText) {
+    async function fetchAIResponse(promptText, isSequential = false) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 25000); 
@@ -737,7 +737,8 @@
           signal: controller.signal,
           body: JSON.stringify({ 
             prompt: promptText,
-            history: chatHistory
+            history: chatHistory,
+            isSequential: isSequential
           }) 
         });
         clearTimeout(timeoutId);
@@ -975,7 +976,7 @@
           input.disabled = true;
           scrollToBottom();
 
-          let cloudResult = await fetchAIResponse(promptText);
+          let cloudResult = await fetchAIResponse(promptText, false); // Parallel mode
           
           if (cloudResult.success && cloudResult.responses.length > 0) {
             if (currentMode === 'single') {
@@ -1040,11 +1041,19 @@
           resetInput();
           input.disabled = true;
           
-          let cloudResult = await fetchAIResponse(fullInput);
+          let cloudResult = await fetchAIResponse(fullInput, false); // Chat mode defaults to parallel
           
           if (cloudResult.success && cloudResult.responses.length > 0) {
-             const line = writeLine('<Console> [' + cloudResult.responses[0].provider + ']\n' + cloudResult.responses[0].text.trim());
-             line.style.color = PROVIDER_COLORS[cloudResult.responses[0].provider] || 'inherit';
+            if (currentMode === 'single') {
+              const res = cloudResult.responses[0];
+              const line = writeLine('<Console> [' + res.provider + ']\n' + res.text.trim());
+              line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
+            } else {
+              cloudResult.responses.forEach(res => {
+                const line = writeLine('<Console> [' + res.provider + ']\n' + res.text.trim() + '\n---');
+                line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
+              });
+            }
           } else {
              writeLine('<Console> [Chat Error]: ' + cloudResult.error);
           }
