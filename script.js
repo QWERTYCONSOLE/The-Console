@@ -1189,6 +1189,19 @@
           writeLine('<Console> [STARTING MEGA-TEST SEQUENCE...]');
 
           const simulateType = async (text) => {
+            // If the previous command triggered the privacy gate, feed it "agree"
+            if (privacyGateActive) {
+              input.value = 'agree';
+              autoResize();
+              input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+              await new Promise(r => setTimeout(r, 300));
+            }
+
+            // Pre-approve whereami so the test doesn't stall on the gate
+            if (text === 'whereami') {
+              privacyConsented.add('whereami');
+            }
+
             input.value = text;
             input.dispatchEvent(new Event('input', { bubbles: true }));
             await new Promise(r => setTimeout(r, 50));
@@ -1206,7 +1219,7 @@
           };
 
           const tour = [
-            "help", "zones", "weather London,UK", "define cat", "calc x3+y3+z3=k",
+            "help", "zones", "weather London", "define cat", "calc x3+y3+z3=k",
             "password", "top", "matrix", "matrix", "copy test", "whereami", "credits",
             "clear", "history", "restore 1", "info", "mode single", "mode multi",
             "ollama on", "ollama off", "note test", "notes", "picker",
