@@ -269,6 +269,39 @@
     function tttAIMove(board, difficulty) {
       const empty = board.map((val, idx) => val === null ? idx : null).filter(val => val !== null);
       if (empty.length === 0) return -1;
+
+      if (difficulty === 'noob') {
+        return empty[Math.floor(Math.random() * empty.length)];
+      }
+
+      // Easy logic: Check if AI can win, then block player, then random
+      if (difficulty === 'easy' || difficulty === 'hard') {
+        // 1. Check if AI can win
+        for (let i = 0; i < 9; i++) {
+          if (board[i] === null) {
+            board[i] = 'O';
+            if (tttCheckWin(board, 'O')) {
+              board[i] = null;
+              return i;
+            }
+            board[i] = null;
+          }
+        }
+
+        // 2. Check if Player is about to win and block
+        for (let i = 0; i < 9; i++) {
+          if (board[i] === null) {
+            board[i] = 'X';
+            if (tttCheckWin(board, 'X')) {
+              board[i] = null;
+              return i;
+            }
+            board[i] = null;
+          }
+        }
+      }
+
+      // Fallback to random (Noob/Easy) or random for Hard for now
       return empty[Math.floor(Math.random() * empty.length)];
     }
     // ------------------------------
