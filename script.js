@@ -111,10 +111,29 @@
     errorSound.preload = 'auto';
     let audioUnlocked = false;
 
+    // --- MEME SOUNDS DICTIONARY ---
+    const memeSounds = {
+      'worcestershire': new Audio(SCRIPT_ORIGIN + '/Worcestershire sauce meme.mp3'),
+      'building': new Audio(SCRIPT_ORIGIN + "/Don't be racist, I Am A Building.mp3")
+    };
+    
+    // Preload them all and set volume
+    Object.values(memeSounds).forEach(sound => {
+      sound.preload = 'auto';
+      sound.volume = 0.6;
+    });
+
     function playError() {
       if (audioUnlocked) {
         errorSound.currentTime = 0; 
         errorSound.play().catch(e => {});
+      }
+    }
+
+    function playMemeSound(type) {
+      if (audioUnlocked && memeSounds[type]) {
+        memeSounds[type].currentTime = 0;
+        memeSounds[type].play().catch(e => {});
       }
     }
 
@@ -920,7 +939,7 @@
           'clear', 'history', 'restore', 'info', 'mode', 'ollama', 'terminal', 
           'linux', 'exit', 'sandbox', 'file', 'note', 'notes', 'wipe', 
           'picker', 'theme', 'rainbow', 'colorblind', 'ascii', 'flip', 
-          'roll', 'echo', 'lines', 'chat', 'js?', 'py?'
+          'roll', 'echo', 'lines', 'chat', 'js?', 'py?', 'meme', 'play'
         ];
 
         const match = allCommands.find(cmd => cmd.startsWith(currentText));
@@ -1283,12 +1302,26 @@
                      ' - roll [sides] (rolls a die, defaults to 6 sides)\n' +
                      ' - echo [text] (prints text back)\n' +
                      ' - lines (shows total lines of console code)\n' +
+                     ' - meme (plays a random meme sound)\n' +
+                     ' - play [sound] (plays a specific meme sound)\n' +
                      ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
                      ' - JS? [code] (run live JavaScript directly in browser)\n' +
                      ' - PY? [code] (run live Python via Pyodide)\n' +
                      ' - time (shows local time; "time UTC+5" or just "UTC+5" / "-5" for an offset)\n' +
                      ' - [offset] (shorthand for "time <offset>", e.g. "UTC+02:00" or "-5")\n\n' +
                      'Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/';
+        } else if (cmdLower === 'meme') {
+          const keys = Object.keys(memeSounds);
+          const randomMeme = keys[Math.floor(Math.random() * keys.length)];
+          playMemeSound(randomMeme);
+          response = `<Console> 🎵 Playing meme sound: [${randomMeme.toUpperCase()}]`;
+        } else if (cmdLower === 'play') {
+          if (memeSounds[arg]) {
+            playMemeSound(arg);
+            response = `<Console> 🎵 Playing: ${arg}`;
+          } else {
+            response = `<Console> Sound not found. Available: ${Object.keys(memeSounds).join(', ')}`;
+          }
         } else if (cmdLower === 'copy') {
           if (!arg) {
             response = '<Console> Usage: copy [text]';
