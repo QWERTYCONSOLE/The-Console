@@ -1655,7 +1655,25 @@
         } else if (cmdLower === 'time') {
           response = arg ? '<Console> Time (' + arg.toUpperCase() + '): ' + parseOffsetTime(arg) : '<Console> Local time: ' + new Date().toLocaleTimeString();
         
+        } else if (fullInput === 'CREATORISQWERTY I AM THE CREATOR') {
+          response = '<Console> [Creator] Clearance verified. Welcome back, QWERTY.';
         } else {
+          // Only send to the AI if this looks like a question or command query.
+          // Bare words, greetings, and random text just get the error — no API burn.
+          const looksLikeQuestion =
+            /\?$/.test(fullInput) ||
+            /^(how|what|where|when|why|who|which|can|could|should|would|is|are|do|does|did|tell me|explain|show me)\b/i.test(fullInput) ||
+            /^(help me|i need|i want)\b/i.test(fullInput);
+
+          if (!looksLikeQuestion) {
+            playError();
+            writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
+            resetInput();
+            scrollToBottom();
+            maintainFocus();
+            return;
+          }
+
           try {
             const res = await fetch(WORKER_URL, {
               method: 'POST',
