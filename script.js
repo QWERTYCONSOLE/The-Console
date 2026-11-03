@@ -156,6 +156,7 @@
     let isChatMode = false;
     let commandBusy = false;
     let testRunning = false;
+    let tttState = null;
     const privacyConsented = new Set();
 
     let customCommands = {};
@@ -240,6 +241,37 @@
       }
       return '<Console> [' + provider + ']\n' + out;
     }
+
+    // --- TIC TAC TOE FUNCTIONS ---
+    function tttRenderBoard(board) {
+      let out = '\n';
+      for (let i = 0; i < 9; i++) {
+        out += ' ' + (board[i] || (i + 1)) + ' ';
+        if ((i + 1) % 3 === 0) {
+          out += '\n';
+          if (i < 6) out += '---+---+---\n';
+        } else {
+          out += '|';
+        }
+      }
+      return out;
+    }
+
+    function tttCheckWin(board, player) {
+      const wins = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+        [0, 3, 6], [1, 4, 7], [2, 5, 8], // cols
+        [0, 4, 8], [2, 4, 6]             // diagonals
+      ];
+      return wins.some(combo => combo.every(idx => board[idx] === player));
+    }
+
+    function tttAIMove(board, difficulty) {
+      const empty = board.map((val, idx) => val === null ? idx : null).filter(val => val !== null);
+      if (empty.length === 0) return -1;
+      return empty[Math.floor(Math.random() * empty.length)];
+    }
+    // ------------------------------
 
     function openFilePicker() {
       const fileInput = document.createElement('input');
@@ -939,7 +971,7 @@
           'clear', 'history', 'restore', 'info', 'mode', 'ollama', 'terminal', 
           'linux', 'exit', 'sandbox', 'file', 'note', 'notes', 'wipe', 
           'picker', 'theme', 'rainbow', 'colorblind', 'ascii', 'flip', 
-          'roll', 'echo', 'lines', 'chat', 'js?', 'py?', 'meme', 'play'
+          'roll', 'echo', 'lines', 'chat', 'js?', 'py?', 'meme', 'play', 'ttt'
         ];
 
         const match = allCommands.find(cmd => cmd.startsWith(currentText));
@@ -1304,12 +1336,51 @@
                      ' - lines (shows total lines of console code)\n' +
                      ' - meme (plays a random meme sound)\n' +
                      ' - play [sound] (plays a specific meme sound)\n' +
+                     ' - ttt [difficulty] (starts a game of Tic-Tac-Toe. Difficulties: noob, easy, hard)\n' +
                      ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
                      ' - JS? [code] (run live JavaScript directly in browser)\n' +
                      ' - PY? [code] (run live Python via Pyodide)\n' +
                      ' - time (shows local time; "time UTC+5" or just "UTC+5" / "-5" for an offset)\n' +
                      ' - [offset] (shorthand for "time <offset>", e.g. "UTC+02:00" or "-5")\n\n' +
                      'Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/';
+        } else if (cmdLower === 'ttt') {
+          if (tttState) {
+            let move = parseInt(arg);
+            if (move >= 1 && move <= 9 && tttState.board[move - 1] === null) {
+              tttState.board[move - 1] = 'X';
+              
+              if (tttCheckWin(tttState.board, 'X')) {
+                response = '<Console> [Tic-Tac-Toe] You win!\n' + tttRenderBoard(tttState.board);
+                tttState = null;
+              } else if (!tttState.board.includes(null)) {
+                response = '<Console> [Tic-Tac-Toe] It\'s a draw!\n' + tttRenderBoard(tttState.board);
+                tttState = null;
+              } else {
+                const aiMove = tttAIMove(tttState.board, tttState.difficulty);
+                tttState.board[aiMove] = 'O';
+                
+                if (tttCheckWin(tttState.board, 'O')) {
+                  response = '<Console> [Tic-Tac-Toe] The AI wins!\n' + tttRenderBoard(tttState.board);
+                  tttState = null;
+                } else if (!tttState.board.includes(null)) {
+                  response = '<Console> [Tic-Tac-Toe] It\'s a draw!\n' + tttRenderBoard(tttState.board);
+                  tttState = null;
+                } else {
+                  response = '<Console> [Tic-Tac-Toe] Your turn (X). Type "ttt [1-9]"\n' + tttRenderBoard(tttState.board);
+                }
+              }
+            } else {
+              response = '<Console> [Tic-Tac-Toe] Invalid move. Pick an empty spot (1-9).\n' + tttRenderBoard(tttState.board);
+            }
+          } else {
+            const diff = arg.toLowerCase();
+            if (diff === 'noob' || diff === 'easy' || diff === 'hard') {
+              tttState = { board: Array(9).fill(null), difficulty: diff };
+              response = `<Console> [Tic-Tac-Toe] Game started on ${diff.toUpperCase()} mode. You are X.\n` + tttRenderBoard(tttState.board) + '\nType "ttt [1-9]" to make a move.';
+            } else {
+              response = '<Console> [Tic-Tac-Toe] Pick a difficulty: "ttt noob", "ttt easy", or "ttt hard".';
+            }
+          }
         } else if (cmdLower === 'meme') {
           const keys = Object.keys(memeSounds);
           const randomMeme = keys[Math.floor(Math.random() * keys.length)];
@@ -1626,7 +1697,6 @@
             let textContent = output.textContent;
             if (textContent.includes('Archived Sessions:')) {
                 const parts = textContent.split('Archived Sessions:');
-                // Keep everything before the history output, and everything after the restore prompt
                 const before = parts[0];
                 const after = parts[1] ? parts[1].split('to reload a past console session.').slice(1).join('') : '';
                 textContent = before + after;
