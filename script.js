@@ -319,7 +319,6 @@
       }
 
       if (difficulty === 'easy' || difficulty === 'medium') {
-        // 1. Check if AI can win
         for (let i = 0; i < 9; i++) {
           if (board[i] === null) {
             board[i] = 'O';
@@ -327,7 +326,6 @@
             board[i] = null;
           }
         }
-        // 2. Check if Player is about to win and block
         for (let i = 0; i < 9; i++) {
           if (board[i] === null) {
             board[i] = 'X';
@@ -336,8 +334,19 @@
           }
         }
         if (difficulty === 'medium' && Math.random() < 0.5) {
-          return tttMinimax(board, 'O').index; // 50% chance to use minimax
+          return tttMinimax(board, 'O').index;
         }
+      }
+
+      // Hard (85%), Insane (95%), Master (99%)
+      let mistakeChance = 0;
+      if (difficulty === 'hard') mistakeChance = 0.15;
+      if (difficulty === 'insane') mistakeChance = 0.05;
+      if (difficulty === 'master') mistakeChance = 0.01;
+
+      if (mistakeChance > 0 && Math.random() < mistakeChance) {
+        // Make a random mistake
+        return empty[Math.floor(Math.random() * empty.length)];
       }
 
       if (difficulty === 'hard' || difficulty === 'insane' || difficulty === 'master') {
