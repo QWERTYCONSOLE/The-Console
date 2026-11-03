@@ -1589,11 +1589,15 @@
                      ' - Total: ' + CURRENT_LINE_COUNT + ' lines';
         } else if (cmdLower === 'clear') {
           if (commandLog.length > 0) {
-            // Strip out the history command output so it doesn't loop infinitely
-            const textContent = output.textContent
-              .split('\n')
-              .filter(line => !line.includes('Type "restore [id]"') && !line.includes('Archived Sessions:'))
-              .join('\n');
+            // Remove the history command output from the saved text
+            let textContent = output.textContent;
+            if (textContent.includes('Archived Sessions:')) {
+                const parts = textContent.split('Archived Sessions:');
+                // Keep everything before the history output, and everything after the restore prompt
+                const before = parts[0];
+                const after = parts[1] ? parts[1].split('to reload a past console session.').slice(1).join('') : '';
+                textContent = before + after;
+            }
 
             archivedSessions.push({
               id: archivedSessions.length + 1,
