@@ -111,13 +111,11 @@
     errorSound.preload = 'auto';
     let audioUnlocked = false;
 
-    // --- MEME SOUNDS DICTIONARY ---
     const memeSounds = {
       'worcestershire': new Audio(SCRIPT_ORIGIN + '/Worcestershire sauce meme.mp3'),
       'building': new Audio(SCRIPT_ORIGIN + "/Don't be racist, I Am A Building.mp3")
     };
     
-    // Preload them all and set volume
     Object.values(memeSounds).forEach(sound => {
       sound.preload = 'auto';
       sound.volume = 0.6;
@@ -266,6 +264,52 @@
       return wins.some(combo => combo.every(idx => board[idx] === player));
     }
 
+    function tttMinimax(newBoard, player) {
+      const availSpots = newBoard.map((val, idx) => val === null ? idx : null).filter(val => val !== null);
+
+      if (tttCheckWin(newBoard, 'X')) return { score: -10 };
+      else if (tttCheckWin(newBoard, 'O')) return { score: 10 };
+      else if (availSpots.length === 0) return { score: 0 };
+
+      const moves = [];
+      for (let i = 0; i < availSpots.length; i++) {
+        const move = {};
+        move.index = availSpots[i];
+        newBoard[availSpots[i]] = player;
+
+        if (player === 'O') {
+          const result = tttMinimax(newBoard, 'X');
+          move.score = result.score;
+        } else {
+          const result = tttMinimax(newBoard, 'O');
+          move.score = result.score;
+        }
+
+        newBoard[availSpots[i]] = null;
+        moves.push(move);
+      }
+
+      let bestMove;
+      if (player === 'O') {
+        let bestScore = -10000;
+        for (let i = 0; i < moves.length; i++) {
+          if (moves[i].score > bestScore) {
+            bestScore = moves[i].score;
+            bestMove = i;
+          }
+        }
+      } else {
+        let bestScore = 10000;
+        for (let i = 0; i < moves.length; i++) {
+          if (moves[i].score < bestScore) {
+            bestScore = moves[i].score;
+            bestMove = i;
+          }
+        }
+      }
+      return moves[bestMove];
+    }
+
     function tttAIMove(board, difficulty) {
       const empty = board.map((val, idx) => val === null ? idx : null).filter(val => val !== null);
       if (empty.length === 0) return -1;
@@ -274,34 +318,32 @@
         return empty[Math.floor(Math.random() * empty.length)];
       }
 
-      // Easy logic: Check if AI can win, then block player, then random
-      if (difficulty === 'easy' || difficulty === 'hard') {
+      if (difficulty === 'easy' || difficulty === 'medium') {
         // 1. Check if AI can win
         for (let i = 0; i < 9; i++) {
           if (board[i] === null) {
             board[i] = 'O';
-            if (tttCheckWin(board, 'O')) {
-              board[i] = null;
-              return i;
-            }
+            if (tttCheckWin(board, 'O')) { board[i] = null; return i; }
             board[i] = null;
           }
         }
-
         // 2. Check if Player is about to win and block
         for (let i = 0; i < 9; i++) {
           if (board[i] === null) {
             board[i] = 'X';
-            if (tttCheckWin(board, 'X')) {
-              board[i] = null;
-              return i;
-            }
+            if (tttCheckWin(board, 'X')) { board[i] = null; return i; }
             board[i] = null;
           }
         }
+        if (difficulty === 'medium' && Math.random() < 0.5) {
+          return tttMinimax(board, 'O').index; // 50% chance to use minimax
+        }
       }
 
-      // Fallback to random (Noob/Easy) or random for Hard for now
+      if (difficulty === 'hard' || difficulty === 'insane' || difficulty === 'master') {
+        return tttMinimax(board, 'O').index;
+      }
+
       return empty[Math.floor(Math.random() * empty.length)];
     }
     // ------------------------------
@@ -1369,7 +1411,7 @@
                      ' - lines (shows total lines of console code)\n' +
                      ' - meme (plays a random meme sound)\n' +
                      ' - play [sound] (plays a specific meme sound)\n' +
-                     ' - ttt [difficulty] (starts a game of Tic-Tac-Toe. Difficulties: noob, easy, hard)\n' +
+                     ' - ttt [difficulty] (starts a game of Tic-Tac-Toe. Difficulties: noob, easy, medium, hard, insane, master)\n' +
                      ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
                      ' - JS? [code] (run live JavaScript directly in browser)\n' +
                      ' - PY? [code] (run live Python via Pyodide)\n' +
@@ -1407,11 +1449,11 @@
             }
           } else {
             const diff = arg.toLowerCase();
-            if (diff === 'noob' || diff === 'easy' || diff === 'hard') {
+            if (['noob', 'easy', 'medium', 'hard', 'insane', 'master'].includes(diff)) {
               tttState = { board: Array(9).fill(null), difficulty: diff };
               response = `<Console> [Tic-Tac-Toe] Game started on ${diff.toUpperCase()} mode. You are X.\n` + tttRenderBoard(tttState.board) + '\nType "ttt [1-9]" to make a move.';
             } else {
-              response = '<Console> [Tic-Tac-Toe] Pick a difficulty: "ttt noob", "ttt easy", or "ttt hard".';
+              response = '<Console> [Tic-Tac-Toe] Pick a difficulty: "ttt noob", "ttt easy", "ttt medium", "ttt hard", "ttt insane", or "ttt master".';
             }
           }
         } else if (cmdLower === 'meme') {
