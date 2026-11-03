@@ -1589,11 +1589,17 @@
                      ' - Total: ' + CURRENT_LINE_COUNT + ' lines';
         } else if (cmdLower === 'clear') {
           if (commandLog.length > 0) {
+            // Strip out the history command output so it doesn't loop infinitely
+            const textContent = output.textContent
+              .split('\n')
+              .filter(line => !line.includes('Type "restore [id]"') && !line.includes('Archived Sessions:'))
+              .join('\n');
+
             archivedSessions.push({
               id: archivedSessions.length + 1,
               start: sessionStartTime,
               end: nowFormatted,
-              content: output.textContent, 
+              content: textContent, 
               commands: [...commandLog]
             });
             try {
