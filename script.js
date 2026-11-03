@@ -78,7 +78,6 @@
     let archivedSessions = window.__CONSOLE_HISTORY__;
     let historyIndex = -1;
 
-    // Persistent cross-reload command history (separate from the per-session commandLog).
     const CMD_HISTORY_KEY = 'retro_cmd_history';
     const CMD_HISTORY_MAX = 200;
     let persistentHistory = [];
@@ -89,7 +88,7 @@
 
     function pushPersistentHistory(cmd) {
       if (!cmd) return;
-      if (persistentHistory[persistentHistory.length - 1] === cmd) return; // dedupe consecutive
+      if (persistentHistory[persistentHistory.length - 1] === cmd) return;
       persistentHistory.push(cmd);
       if (persistentHistory.length > CMD_HISTORY_MAX) persistentHistory.shift();
       try { localStorage.setItem(CMD_HISTORY_KEY, JSON.stringify(persistentHistory)); } catch (e) {}
@@ -97,8 +96,6 @@
 
     const WORKER_URL = 'https://console-ai-js.qwerty12345-1o1.workers.dev';
     
-    // Resolve error.mp3 against the SCRIPT's origin, not the host page's origin,
-    // so the sound works when the terminal is injected on a third-party page.
     const SCRIPT_ORIGIN = (function () {
       try {
         const cur = document.currentScript && document.currentScript.src;
@@ -138,7 +135,7 @@
     let matrixInterval = null;
     let chatHistory = []; 
     let isChatMode = false;
-    let privacyAgreed = false;
+    const privacyConsented = new Set();
 
     let customCommands = {};
     try {
@@ -172,6 +169,18 @@
 
     function scrollToBottom() {
       container.scrollTop = container.scrollHeight;
+    }
+
+    function waitForIdle(timeoutMs = 30000) {
+      return new Promise((resolve) => {
+        const start = Date.now();
+        const tick = () => {
+          if (!input.disabled) return resolve();
+          if (Date.now() - start > timeoutMs) return resolve();
+          setTimeout(tick, 100);
+        };
+        tick();
+      });
     }
 
     input.addEventListener('input', function() {
@@ -664,7 +673,6 @@
 
     function parseOffsetTime(offsetStr) {
       let str = String(offsetStr).toUpperCase().replace('UTC', '').replace('GMT', '').trim();
-      // Only accept +/-HH, +/-HH:MM, +/-HH.MM, or bare digits. Otherwise treat as UTC.
       if (!/^[+-]?\d{1,2}([:.]\d{2})?$/.test(str)) {
         return new Date().toLocaleTimeString('en-US', { timeZone: 'UTC' }) + ' (UTC — invalid offset ignored)';
       }
@@ -700,7 +708,7 @@
         const res = await fetch(WORKER_URL, { method: 'GET' });
         if (res.ok) {
           const data = await res.json();
-          writeLine(`Worker State: ${data.workerHealth} (HTTP ${res.status})`);
+          writeLine(`Worker State: ${data.online ? 'online' : 'unknown'} (HTTP ${res.status})`);
           writeLine(`OpenAI Key: ${data.providers.openai}`);
           writeLine(`OpenRouter Key: ${data.providers.openrouter}`);
         } else {
@@ -746,7 +754,6 @@
       writeLine(`User Agent: ${navigator.userAgent}`);
       writeLine(`OS (Platform): ${navigator.platform}`);
       writeLine(`Screen Resolution: ${window.screen.width}x${window.screen.height}`);
-      writeLine(`Window Size: ${window.innerWidth}x${window.innerHeight}`);
       writeLine(`Window Size: ${window.innerWidth}x${window.innerHeight}`);
       writeLine(`CPU Cores: ${navigator.hardwareConcurrency || 'Unknown'}`);
       writeLine(`Device Memory: ${navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'Unknown'}`);
@@ -864,12 +871,9 @@
     function maintainFocus() { if (!input.disabled) input.focus(); }
     setTimeout(maintainFocus, 100);
 
-    // One-shot privacy gate. Does NOT disable the input (disabled inputs don't
-    // receive keydown). Instead, installs a capture-phase handler that runs BEFORE
-    // the main Enter handler and stops propagation until resolved.
     let privacyGateActive = false;
     function requirePrivacyConsent(subject, onAgree) {
-      if (privacyAgreed) { onAgree(); return; }
+      if (privacyConsented.has(subject)) { onAgree(); return; }
       if (privacyGateActive) return;
       privacyGateActive = true;
 
@@ -886,7 +890,7 @@
 
         const val = input.value.trim().toLowerCase();
         if (val === 'agree') {
-          privacyAgreed = true;
+          privacyConsented.add(subject);
           privacyGateActive = false;
           input.removeEventListener('keydown', handler, true);
           writeLine('<Console> [System]: Privacy agreement accepted. Starting ' + subject + '...');
@@ -972,6 +976,11 @@
         let fullInput = input.value.trim(); 
         if (fullInput === '') return;
 
+        if (privacyGateActive) {
+          resetInput();
+          return;
+        }
+
         historyIndex = -1;
         let nowFormatted = new Date().toLocaleTimeString();
         if (!sessionStartTime) sessionStartTime = nowFormatted;
@@ -998,7 +1007,6 @@
         let cmdLower = parts[0].toLowerCase();
         let arg = parts.slice(1).join(' ');
 
-        // 1. Handle entering/exiting chat mode first
         if (cmdLower === 'chat') {
           if (isChatMode) {
             isChatMode = false;
@@ -1015,7 +1023,6 @@
           return;
         }
 
-        // 2. If in chat mode, intercept EVERYTHING and send to AI
         if (isChatMode) {
           writeLine('<Console> [Thinking...]');
           resetInput();
@@ -1023,7 +1030,7 @@
           
           let cloudResult = await fetchAIResponse(fullInput, false);
 
-          if (cloudResult.success && cloudResult.responses.length > 0) {
+          if (cloudResult.success && cloudResult.responses && cloudResult.responses.length > 0) {
             if (currentMode === 'single') {
               const res = cloudResult.responses[0];
               const line = writeLine(formatAIResponse(res.provider, res.text));
@@ -1054,7 +1061,6 @@
           return;
         }
 
-        // 3. Handle standard commands
         if (fullInput.toLowerCase().startsWith('js?')) {
           let jsCode = fullInput.substring(3).trim();
           writeLine('<Console> [Executing JS...]');
@@ -1124,26 +1130,17 @@
           input.disabled = true;
           scrollToBottom();
 
-          let cloudResult = await fetchAIResponse(promptText, false); // Parallel mode
+          let cloudResult = await fetchAIResponse(promptText, false);
           
-          if (cloudResult.success && cloudResult.responses.length > 0) {
+          if (cloudResult.success && cloudResult.responses && cloudResult.responses.length > 0) {
             if (currentMode === 'single') {
               const res = cloudResult.responses[0];
               const line = writeLine(formatAIResponse(res.provider, res.text) + '\n---');
               line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
             } else {
               cloudResult.responses.forEach(res => {
-                if (res.text.includes('[EASTER_EGG_HI]')) {
-                  writeLine('<Console> Hello! Type "help" to see what I can do.');
-                } else if (res.text.includes('[EASTER_EGG_SUDO]')) {
-                  writeLine('<Console> Nice try. But you don\'t have root access here.');
-                } else if (res.text.includes('[EASTER_EGG_HACK]')) {
-                  if (!matrixInterval) toggleMatrix();
-                  writeLine('<Console> [SYSTEM BREACHED... JUST KIDDING.] 🟩 Type "matrix" to turn it off.');
-                } else {
-                  const line = writeLine(formatAIResponse(res.provider, res.text) + '\n---');
-                  line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
-                }
+                const line = writeLine(formatAIResponse(res.provider, res.text) + '\n---');
+                line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
               });
             }
           } else if (ollamaEnabled) {
@@ -1191,46 +1188,42 @@
 
         let response = '';
         if (cmdLower === 'test') {
-          if (!privacyAgreed) {
-            requirePrivacyConsent('test', () => {
-              input.value = 'test';
-              autoResize();
-              input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-            });
-            return;
-          }
-
           resetInput();
           input.disabled = true;
           writeLine('<Console> [STARTING MEGA-TEST SEQUENCE...]');
-          
+
           const simulateType = async (text) => {
             input.value = text;
             input.dispatchEvent(new Event('input', { bubbles: true }));
             const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
             input.dispatchEvent(event);
-            await new Promise(r => setTimeout(r, 800)); 
+            await waitForIdle();
+            await new Promise(r => setTimeout(r, 400));
           };
 
           const tour = [
-            "help", "credits", "lines", "zones", "time", "utc+5", "utc-8",
-            "matrix", "matrix", "rainbow", "rainbow", "colorblind deuteranopia", 
-            "matrix", "matrix", "colorblind off", "theme #ff0000 #000000", "theme #00ff66 #0d0d0d",
-            "ascii", "flip", "roll 20", "echo Mega-test in progress!", "calc 5 * 5 * 5",
-            "password 6", "note Mega-test note 1", "notes", "wipe", "notes",
-            "js? const arr = [1,2,3,4,5]; arr.map(x => x * 10)",
-            "js? function fib(n) { return n < 2 ? n : fib(n-1) + fib(n-2); } fib(10)",
-            "py? import math; print(math.factorial(15))",
-            "py? def greet(name): return f'Hello {name}'; print(greet('QWERTY'))",
-            "mode single", "*what is 2+2?*", "mode multi", "*what is 2+2?*",
-            "info", "credits", "lines"
+            "help", "zones", "weather London,UK", "define cat", "calc x3+y3+z3=k",
+            "password", "top", "matrix", "matrix", "copy test", "whereami", "credits",
+            "clear", "history", "restore 1", "info", "mode single", "mode multi",
+            "ollama on", "ollama off", "note test", "notes", "picker",
+            "theme #ff0000 #000000", "theme #00ff66 #0d0d0d", "rainbow", "rainbow",
+            "colorblind deuteranopia", "colorblind off", "ascii", "flip", "roll", "roll 80",
+            "echo test", "lines",
+            "js? const arr = [1,2,3,4,5]; const nested = arr.map(x => ({ v: x, sq: x * x })); const fn = (a, b) => a.reduce((acc, c) => acc + c, b); fn(nested.map(o => o.sq), 0); null",
+            "py? import math; data = [{'v': x, 'sq': x * x} for x in range(1, 6)]; total = sum(d['sq'] for d in data); print(math.factorial(10), total); None",
+            "time", "utc-12", "utc-11", "utc-10", "utc-09:30", "utc-09", "utc-08", "utc-07",
+            "utc-06", "utc-05", "utc-04", "utc-03:30", "utc-03", "utc-02", "utc-01",
+            "utc+00:00", "utc+01", "utc+02", "utc+03", "utc+03:30", "utc+04", "utc+04:30",
+            "utc+05", "utc+05:30", "utc+05:45", "utc+06", "utc+06:30", "utc+07", "utc+08",
+            "utc+08:45", "utc+09", "utc+09:30", "utc+10", "utc+10:30", "utc+11", "utc+12",
+            "utc+12:45", "utc+13", "utc+13:45", "utc+14", "lines"
           ];
 
           for (let i = 0; i < tour.length; i++) {
             writeLine(`<Console> [Test Step ${i + 1}/${tour.length}]: Executing "${tour[i]}"`);
             await simulateType(tour[i]);
           }
-          
+
           writeLine("<Console> [MEGA-TEST COMPLETE]");
           input.disabled = false;
           maintainFocus();
@@ -1238,7 +1231,7 @@
         } else if (cmdLower === 'help') {
           response = '<Console> Available commands:\n' +
                      ' - help (shows this menu)\n' +
-                     ' - test (runs the automated 20-step tour)\n' +
+                     ' - test (runs the automated mega-test tour)\n' +
                      ' - zones (lists all timezone offsets)\n' +
                      ' - weather [city,country] (e.g. "weather London,UK")\n' +
                      ' - define [word] (looks up the definition of a word)\n' +
@@ -1300,24 +1293,11 @@
             playError();
             response = '<Console> Geolocation is not supported by this browser.';
           } else {
-            resetInput();
-            input.disabled = true;
-            writeLine('<Console> [Requesting location...]');
-            navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                writeLine(`<Console> [Location]: Lat ${pos.coords.latitude.toFixed(4)}, Lon ${pos.coords.longitude.toFixed(4)}`);
-                input.disabled = false;
-                maintainFocus();
-                scrollToBottom();
-              },
-              (err) => {
-                playError();
-                writeLine(`<Console> [Geolocation Error]: ${err.message}`);
-                input.disabled = false;
-                maintainFocus();
-                scrollToBottom();
-              }
-            );
+            requirePrivacyConsent('whereami', () => {
+              input.value = 'whereami';
+              autoResize();
+              input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+            });
             return;
           }
         } else if (cmdLower === 'share') {
@@ -1347,14 +1327,6 @@
         } else if (cmdLower === 'matrix') {
           response = toggleMatrix();
         } else if (cmdLower === 'top') {
-          if (!privacyAgreed) {
-            requirePrivacyConsent('top', () => {
-              input.value = 'top';
-              autoResize();
-              input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-            });
-            return;
-          }
           resetInput();
           runTop();
           return;
@@ -1415,7 +1387,7 @@
         } else if (cmdLower === 'ollama') {
           if (arg === 'on') {
             ollamaEnabled = true;
-            response = '<Console> Ollama fallback ENABLED. (Warning: Local CPU generation may lag your laptop).';
+            response = '<Console> Ollama fallback ENABLED.';
           } else if (arg === 'off') {
             ollamaEnabled = false;
             response = '<Console> Ollama fallback DISABLED. Terminal will rely only on cloud APIs.';
@@ -1438,14 +1410,6 @@
           resetInput();
           return;
         } else if (cmdLower === 'info') {
-          if (!privacyAgreed) {
-            requirePrivacyConsent('info', () => {
-              input.value = 'info';
-              autoResize();
-              input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-            });
-            return;
-          }
           resetInput();
           input.disabled = true;
           try {
@@ -1692,7 +1656,6 @@
           response = arg ? '<Console> Time (' + arg.toUpperCase() + '): ' + parseOffsetTime(arg) : '<Console> Local time: ' + new Date().toLocaleTimeString();
         
         } else {
-          // 4. Final fallback for unknown commands (NOT in chat mode)
           try {
             const res = await fetch(WORKER_URL, {
               method: 'POST',
@@ -1702,19 +1665,7 @@
             const data = await res.json();
             
             if (data.success && data.responses && data.responses.length > 0) {
-              const aiText = data.responses[0].text;
-              
-              if (aiText.includes('[EASTER_EGG_HACK]')) {
-                if (!matrixInterval) toggleMatrix();
-                writeLine('<Console> [SYSTEM BREACHED... JUST KIDDING.] 🟩 Type "matrix" to turn it off.');
-              } else if (aiText.includes('[EASTER_EGG_HI]')) {
-                writeLine('<Console> Hello! Type "help" to see what I can do.');
-              } else if (aiText.includes('[EASTER_EGG_SUDO]')) {
-                writeLine('<Console> Nice try. But you don\'t have root access here.');
-              } else {
-                playError();
-                writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
-              }
+              writeLine(data.responses[0].text);
             } else {
               playError();
               writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
