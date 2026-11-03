@@ -135,6 +135,8 @@
     let matrixInterval = null;
     let chatHistory = []; 
     let isChatMode = false;
+    let commandBusy = false;
+    let testRunning = false;
     const privacyConsented = new Set();
 
     let customCommands = {};
@@ -169,18 +171,6 @@
 
     function scrollToBottom() {
       container.scrollTop = container.scrollHeight;
-    }
-
-    function waitForIdle(timeoutMs = 30000) {
-      return new Promise((resolve) => {
-        const start = Date.now();
-        const tick = () => {
-          if (!input.disabled) return resolve();
-          if (Date.now() - start > timeoutMs) return resolve();
-          setTimeout(tick, 100);
-        };
-        tick();
-      });
     }
 
     input.addEventListener('input', function() {
@@ -1188,16 +1178,30 @@
 
         let response = '';
         if (cmdLower === 'test') {
+          if (testRunning) {
+            writeLine('<Console> [Test already running]');
+            resetInput();
+            maintainFocus();
+            return;
+          }
+          testRunning = true;
           resetInput();
-          input.disabled = true;
           writeLine('<Console> [STARTING MEGA-TEST SEQUENCE...]');
 
           const simulateType = async (text) => {
             input.value = text;
             input.dispatchEvent(new Event('input', { bubbles: true }));
+            await new Promise(r => setTimeout(r, 50));
             const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
             input.dispatchEvent(event);
-            await waitForIdle();
+            await new Promise((resolve) => {
+              const start = Date.now();
+              const tick = () => {
+                if (!commandBusy || Date.now() - start > 30000) return resolve();
+                setTimeout(tick, 100);
+              };
+              setTimeout(tick, 100);
+            });
             await new Promise(r => setTimeout(r, 400));
           };
 
@@ -1225,7 +1229,7 @@
           }
 
           writeLine("<Console> [MEGA-TEST COMPLETE]");
-          input.disabled = false;
+          testRunning = false;
           maintainFocus();
           return;
         } else if (cmdLower === 'help') {
@@ -1658,8 +1662,6 @@
         } else if (fullInput === 'CREATORISQWERTY I AM THE CREATOR') {
           response = '<Console> [Creator] Clearance verified. Welcome back, QWERTY.';
         } else {
-          // Only send to the AI if this looks like a question or command query.
-          // Bare words, greetings, and random text just get the error — no API burn.
           const looksLikeQuestion =
             /\?$/.test(fullInput) ||
             /^(how|what|where|when|why|who|which|can|could|should|would|is|are|do|does|did|tell me|explain|show me)\b/i.test(fullInput) ||
