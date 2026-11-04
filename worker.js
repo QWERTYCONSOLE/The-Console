@@ -1,11 +1,7 @@
-// ============================================================
-// Public Worker — AI Broadcast + 7-Tier Fallback
-// ============================================================
-
 const PROVIDER_TIMEOUT_MS = 15000;
 const HEALTH_TIMEOUT_MS = 4000;
 const WEATHER_TIMEOUT_MS = 6000;
-const SECRET_WORKER_URL = 'https://YOUR-SECRET-WORKER-URL.workers.dev'; // <--- CHANGE THIS
+const SECRET_WORKER_URL = 'https://pegs.qwerty12345-1o1.workers.dev/'
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -67,8 +63,6 @@ async function checkProvider(name, key) {
   }
   return { status: "unknown", ok: false };
 }
-
-// ---------- AI Calls ----------
 
 async function callOpenAI(key, messages) {
   if (!key) return { provider: "openai", success: false, error: "no key" };
