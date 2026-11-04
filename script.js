@@ -156,7 +156,7 @@
     let testRunning = false;
     let tttState = null;
     let customGameState = null;
-    const privacyConsented = new Set();
+    let privacyGateActive = false;
 
     let customCommands = {};
     try {
@@ -1163,9 +1163,7 @@
     function maintainFocus() { if (!input.disabled) input.focus(); }
     setTimeout(maintainFocus, 100);
 
-    let privacyGateActive = false;
     function requirePrivacyConsent(subject, onAgree) {
-      if (privacyConsented.has(subject)) { onAgree(); return; }
       if (privacyGateActive) return;
       privacyGateActive = true;
 
@@ -1182,7 +1180,6 @@
 
         const val = input.value.trim().toLowerCase();
         if (val === 'agree') {
-          privacyConsented.add(subject);
           privacyGateActive = false;
           input.removeEventListener('keydown', handler, true);
           writeLine('<Console> [System]: Privacy agreement accepted. Starting ' + subject + '...');
@@ -1530,7 +1527,7 @@
 
           const tour = [
             "help", "zones", "weather London", "define cat", "calc x3+y3+z3=k",
-            "password", "top", "matrix", "matrix", "copy test", "credits",
+            "password", "top", "matrix", "matrix", "copy test", "whereami", "credits",
             "clear", "history", "restore 1", "info", "mode single", "mode multi",
             "ollama on", "ollama off", "note test", "notes", "picker",
             "theme #ff0000 #000000", "theme #00ff66 #0d0d0d", "rainbow", "rainbow",
@@ -1875,8 +1872,12 @@
           resetInput();
           input.disabled = true;
           try {
-            await runInfo();
-          } finally {
+            requirePrivacyConsent('info', async () => {
+              await runInfo();
+              input.disabled = false;
+              maintainFocus();
+            });
+          } catch (e) {
             input.disabled = false;
             maintainFocus();
           }
