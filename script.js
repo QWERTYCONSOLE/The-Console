@@ -784,7 +784,7 @@
         justify-content: space-between;
         align-items: center;
       `;
-      titleBar.innerHTML = `<span>Sandbox Editor v1.0</span>`;
+      titleBar.innerHTML = `<span>Visual Sandbox Emulator v2.0</span>`;
 
       const toolbar = document.createElement('div');
       toolbar.style.cssText = `
@@ -795,16 +795,12 @@
       `;
 
       const selector = document.createElement('select');
-      selector.innerHTML = '<option value="js">JavaScript</option><option value="py">Python</option>';
+      selector.innerHTML = '<option value="web">HTML/CSS/JS</option><option value="py">Python</option>';
       selector.style.cssText = 'background: #0d0d0d; color: #00ff66; border: 1px solid #00ff66; padding: 5px; font-family: monospace;';
 
       const runBtn = document.createElement('button');
       runBtn.textContent = '▶ Run Code';
       runBtn.style.cssText = 'background: #00ff66; color: #000; border: none; padding: 5px 15px; font-weight: bold; cursor: pointer; font-family: monospace;';
-
-      const saveCmdBtn = document.createElement('button');
-      saveCmdBtn.textContent = '💾 Save as Command';
-      saveCmdBtn.style.cssText = 'background: #4da6ff; color: #000; border: none; padding: 5px 15px; font-weight: bold; cursor: pointer; font-family: monospace;';
 
       const closeBtn = document.createElement('button');
       closeBtn.textContent = '✖ Close';
@@ -812,28 +808,22 @@
 
       toolbar.appendChild(selector);
       toolbar.appendChild(runBtn);
-      toolbar.appendChild(saveCmdBtn);
       toolbar.appendChild(closeBtn);
 
       const editor = document.createElement('textarea');
       editor.className = 'sandbox-editor';
-      editor.placeholder = '// Write your code here...';
-      editor.value = 'console.log("Hello from the sandbox screen!");\nconsole.log("JS is running perfectly.");';
+      editor.placeholder = '// Write HTML, CSS, or JS here...';
+      editor.value = '<h1 style="color: #00ff66; font-family: monospace;">Hello from the Visual Sandbox!</h1>\n<p style="color: white;">You can render actual HTML here.</p>';
 
-      const outputScreen = document.createElement('div');
+      const outputScreen = document.createElement('iframe');
       outputScreen.style.cssText = `
-        background: #000;
-        color: #00ff66;
-        font-family: 'Courier New', Courier, monospace;
-        font-size: 0.9rem;
-        padding: 10px;
-        min-height: 100px;
-        max-height: 200px;
-        overflow-y: auto;
-        white-space: pre-wrap;
-        text-align: left;
+        background: #ffffff;
+        width: 100%;
+        height: 250px;
+        border: none;
+        border-top: 1px solid #222;
+        display: block;
       `;
-      outputScreen.textContent = '> Ready to execute.\n';
 
       windowFrame.appendChild(titleBar);
       windowFrame.appendChild(toolbar);
@@ -843,59 +833,37 @@
       scrollToBottom();
 
       selector.onchange = () => {
-        if (selector.value === 'js') {
-          editor.value = 'console.log("Hello from the sandbox screen!");\nconsole.log("JS is running perfectly.");';
+        if (selector.value === 'web') {
+          editor.value = '<h1 style="color: #00ff66; font-family: monospace;">Hello from the Visual Sandbox!</h1>\n<p style="color: white;">You can render actual HTML here.</p>';
         } else {
-          editor.value = 'import sys\nprint("Hello from the sandbox screen!")\nprint("Python is running perfectly.")';
+          editor.value = 'import sys\nprint("Hello from Python!")\n2 + 2';
         }
       };
 
       closeBtn.onclick = () => windowFrame.remove();
 
-      saveCmdBtn.onclick = () => {
-        const cmdName = prompt("Enter a name for this custom command (e.g., 'greet'):");
-        if (!cmdName) return;
-        
-        if (selector.value === 'py') {
-          alert("Saving Python commands is not supported yet. Please use JavaScript.");
-          return;
-        }
-
-        customCommands[cmdName.toLowerCase()] = editor.value;
-        localStorage.setItem('retro_custom_cmds', JSON.stringify(customCommands));
-        outputScreen.textContent += `\n> Saved custom command: "${cmdName.toLowerCase()}"\n`;
-        writeLine(`<Console> [Sandbox] Custom command "${cmdName.toLowerCase()}" has been permanently saved.`);
-        scrollToBottom();
-      };
-
       runBtn.onclick = async () => {
         const code = editor.value.trim();
         const lang = selector.value;
-        
-        outputScreen.textContent += `\n> Executing ${lang.toUpperCase()}...\n`;
-        outputScreen.scrollTop = outputScreen.scrollHeight;
 
-        if (lang === 'js') {
-          try {
-            const originalLog = console.log;
-            console.log = (...args) => {
-              outputScreen.textContent += args.join(' ') + '\n';
-            };
-
-            const evalResult = (0, eval)(code);
-            if (evalResult !== undefined) {
-              outputScreen.textContent += '=> ' + String(evalResult) + '\n';
-            }
-            
-            console.log = originalLog;
-            outputScreen.textContent += '> Execution finished.\n';
-          } catch (err) {
-            playError();
-            outputScreen.textContent += '[JS Error]: ' + err.message + '\n';
-          }
+        if (lang === 'web') {
+          const doc = outputScreen.contentWindow.document;
+          doc.open();
+          doc.write(code);
+          doc.close();
         } else if (lang === 'py') {
+          outputScreen.style.background = '#000';
+          outputScreen.style.color = '#00ff66';
+          outputScreen.style.fontFamily = 'monospace';
+          outputScreen.style.padding = '10px';
+          outputScreen.style.whiteSpace = 'pre-wrap';
+          
+          const doc = outputScreen.contentWindow.document;
+          doc.open();
+          doc.write('<div style="padding: 10px; color: #00ff66; background: #000; font-family: monospace; height: 100%;">> Booting Python engine...\n</div>');
+          doc.close();
+
           input.disabled = true;
-          outputScreen.textContent += '> Booting Python engine...\n';
           
           try {
             const py = await getPyodide();
@@ -909,17 +877,14 @@
               pyOutput += '=> ' + String(result) + '\n';
             }
             
-            outputScreen.textContent += pyOutput;
-            outputScreen.textContent += '> Execution finished.\n';
+            doc.body.innerHTML += '<pre style="margin:0; padding: 10px;">' + pyOutput + '</pre>';
           } catch (err) {
-            playError();
-            outputScreen.textContent += '[Python Error]: ' + err.message + '\n';
+            doc.body.innerHTML += '<pre style="margin:0; padding: 10px; color: #ff6b6b;">[Python Error]: ' + err.message + '</pre>';
           } finally {
             input.disabled = false;
             maintainFocus();
           }
         }
-        outputScreen.scrollTop = outputScreen.scrollHeight;
         scrollToBottom();
       };
     }
@@ -1722,7 +1687,7 @@
               }
             }
           } else if (customGameState) {
-
+            // PLAYING CUSTOM GAME
             let move = parseInt(arg);
             if (move >= 1 && move <= customGameState.width * customGameState.height && customGameState.board[move - 1] === null) {
               customGameState.board[move - 1] = customGameState.player;
@@ -1751,7 +1716,7 @@
               response = '<Console> [Custom Game] Invalid move. Pick an empty spot.\n' + customRenderBoard(customGameState);
             }
           } else if (tttState) {
-
+            // PLAYING CLASSIC GAME
             let move = parseInt(arg);
             if (move >= 1 && move <= 9 && tttState.board[move - 1] === null) {
               tttState.board[move - 1] = 'X';
@@ -2228,7 +2193,7 @@
           response = arg ? '<Console> Time (' + arg.toUpperCase() + '): ' + parseOffsetTime(arg) : '<Console> Local time: ' + new Date().toLocaleTimeString();
         
         } else {
-          
+          // Check with the secret worker first
           try {
             const secretRes = await fetch(SECRET_WORKER_URL, {
               method: 'POST',
@@ -2252,11 +2217,11 @@
               }
             }
           } catch (e) {
-
+            // If the secret worker fails, just ignore it and move on
           }
 
           if (!response) {
-            
+            // If we get here, it's not a secret command
             playError();
             writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
             resetInput();
