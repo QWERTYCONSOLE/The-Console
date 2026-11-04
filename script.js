@@ -32,9 +32,10 @@
       return;
     }
 
-    const CLIENT_LINES = 1285; 
-    const WORKER_LINES = 175;
-    const CURRENT_LINE_COUNT = CLIENT_LINES + WORKER_LINES;
+    // --- LINE COUNTS (Fallback if GitHub API fails) ---
+    const JS_LINES = 2176; 
+    const WORKER_LINES = 299;
+    const CURRENT_LINE_COUNT = JS_LINES + WORKER_LINES;
 
     let container = document.createElement('div');
     container.id = 'retro-console-root';
@@ -95,6 +96,7 @@
     }
 
     const WORKER_URL = 'https://console-ai-js.qwerty12345-1o1.workers.dev';
+    const SECRET_WORKER_URL = 'https://pegs.qwerty12345-1o1.workers.dev';
     
     const SCRIPT_ORIGIN = (function () {
       try {
@@ -105,6 +107,34 @@
       if (s && s.src) return new URL(s.src).origin;
       return window.location.origin;
     })();
+
+    // --- LIVE LINE COUNTER HELPER ---
+    async function fetchLineCounts() {
+      const baseUrl = 'https://raw.githubusercontent.com/QWERTYCONSOLE/The-Console/main/';
+      const files = {
+        js: 'script.js',
+        html: 'index.html',
+        css: 'style.css',
+        worker: 'worker.js'
+      };
+
+      const counts = {};
+      
+      for (const [key, filename] of Object.entries(files)) {
+        try {
+          const res = await fetch(baseUrl + filename);
+          if (res.ok) {
+            const text = await res.text();
+            counts[key] = text.split('\n').length;
+          } else {
+            counts[key] = 0;
+          }
+        } catch (e) {
+          counts[key] = 0;
+        }
+      }
+      return counts;
+    }
 
     const errorSound = new Audio(SCRIPT_ORIGIN + '/error.mp3');
     errorSound.volume = 0.5;
@@ -1089,7 +1119,7 @@
           if (data.responses && data.responses.length > 0) {
              chatHistory.push({ role: 'assistant', content: data.responses[0].text });
           }
-          return { success: true, responses: data.responses, errors: data.errors };
+          return { success: true, responses: data.responses, errors: data.errors, triggerMatrix: data.triggerMatrix };
         } else {
           playError();
           return { success: false, error: data.error || "Unknown worker error" };
@@ -1363,6 +1393,13 @@
                 line.style.color = '#ff6b6b';
               });
             }
+            
+            // --- EASTER EGG MATRIX TRIGGER ---
+            if (cloudResult.triggerMatrix) {
+              if (!matrixInterval) toggleMatrix();
+              writeLine('<Console> [SYSTEM BREACHED... JUST KIDDING.] 🟩 Type "matrix" to turn it off.');
+            }
+            
           } else if (ollamaEnabled) {
             writeLine('<Console> [Chat Error]: ' + (cloudResult.error || 'cloud failed') + ' — trying local Ollama...');
             const ollamaResult = await callOllama(fullInput);
@@ -1472,6 +1509,13 @@
                 line.style.color = '#ff6b6b';
               });
             }
+            
+            // --- EASTER EGG MATRIX TRIGGER ---
+            if (cloudResult.triggerMatrix) {
+              if (!matrixInterval) toggleMatrix();
+              writeLine('<Console> [SYSTEM BREACHED... JUST KIDDING.] 🟩 Type "matrix" to turn it off.');
+            }
+            
           } else if (ollamaEnabled) {
             writeLine('<Console> [All cloud APIs failed. Trying local Ollama fallback...]');
             let ollamaResult = await callOllama(promptText);
@@ -2054,13 +2098,30 @@
           response = '<Console> Ideas for The Console and idea of The Console: QWERTY (also known as Mason, RTG elicit and Real Elicit)\n' +
                      'Coder: Gemini (made ~400 and fired because of usage limits and inefficiency) DeepSeek (fixed all of Gemini\'s lines of code and made better code) Brave Search Assistant (corrected few Gemini lines and DeepSeek lines of code)\n' +
                      'AI responses: Open ai/ChatGPT, Nemotron, Flint (via OpenRouter), and Ollama (local fallback)\n' +
-                     'Coding Software: Cloudflare (' + WORKER_LINES + ' lines written within, makes api keys hidden and ai work!)\n' +
-                     'Built-in client side browser console (' + CLIENT_LINES + ' lines, makes all the visuals and commands work)';
+                     'Coding Software: Cloudflare (keeps api keys hidden and ai work!)\n' +
+                     'Built-in client side browser console (makes all the visuals and commands work)';
         } else if (cmdLower === 'lines') {
-          response = '<Console> Source code lines:\n' +
-                     ' - Client console: ' + CLIENT_LINES + ' lines\n' +
-                     ' - Cloudflare Worker: ' + WORKER_LINES + ' lines\n' +
-                     ' - Total: ' + CURRENT_LINE_COUNT + ' lines';
+          resetInput();
+          input.disabled = true;
+          writeLine('<Console> [Calculating dynamic line counts...]');
+          
+          try {
+            const counts = await fetchLineCounts();
+            const total = counts.js + counts.html + counts.css + counts.worker;
+            
+            response = `<Console> Source code lines (Live from GitHub):\n` +
+                       ` - index.html: ${counts.html} lines\n` +
+                       ` - style.css: ${counts.css} lines\n` +
+                       ` - script.js: ${counts.js} lines\n` +
+                       ` - Cloudflare Worker: ${counts.worker} lines\n` +
+                       ` - Total: ${total} lines`;
+          } catch (e) {
+            playError();
+            response = '<Console> [Error]: Could not fetch live line counts.';
+          }
+          
+          input.disabled = false;
+          maintainFocus();
         } else if (cmdLower === 'clear') {
           if (commandLog.length > 0) {
             let textContent = output.textContent;
@@ -2155,7 +2216,33 @@
         } else if (fullInput === 'CREATORISQWERTY I AM THE CREATOR') {
           response = '<Console> [Creator] Clearance verified. Welcome back, QWERTY.';
         } else {
-          // If it's not a command, it's not recognized. No AI fallback.
+          // Check with the secret worker first
+          try {
+            const secretRes = await fetch(SECRET_WORKER_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: fullInput })
+            });
+            
+            if (secretRes.ok) {
+              const secretData = await secretRes.json();
+              if (secretData.text) {
+                writeLine(secretData.text);
+                if (secretData.triggerMatrix) {
+                  if (!matrixInterval) toggleMatrix();
+                  writeLine('<Console> [SYSTEM BREACHED... JUST KIDDING.] 🟩 Type "matrix" to turn it off.');
+                }
+                resetInput();
+                scrollToBottom();
+                maintainFocus();
+                return;
+              }
+            }
+          } catch (e) {
+            // If the secret worker fails, just ignore it and move on
+          }
+
+          // If we get here, it's not a secret command
           playError();
           writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
           resetInput();
