@@ -2166,39 +2166,9 @@
         } else if (fullInput === 'CREATORISQWERTY I AM THE CREATOR') {
           response = '<Console> [Creator] Clearance verified. Welcome back, QWERTY.';
         } else {
-          const looksLikeQuestion =
-            /\?$/.test(fullInput) ||
-            /^(how|what|where|when|why|who|which|can|could|should|would|is|are|do|does|did|tell me|explain|show me)\b/i.test(fullInput) ||
-            /^(help me|i need|i want)\b/i.test(fullInput);
-
-          if (!looksLikeQuestion) {
-            playError();
-            writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
-            resetInput();
-            scrollToBottom();
-            maintainFocus();
-            return;
-          }
-
-          try {
-            const res = await fetch(WORKER_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt: fullInput, history: [] })
-            });
-            const data = await res.json();
-            
-            if (data.success && data.responses && data.responses.length > 0) {
-              writeLine(data.responses[0].text);
-            } else {
-              playError();
-              writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
-            }
-          } catch (err) {
-            playError();
-            writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
-          }
-          
+          // If it's not a command, it's not recognized. No AI fallback.
+          playError();
+          writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
           resetInput();
           scrollToBottom();
           maintainFocus();
