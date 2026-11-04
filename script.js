@@ -155,6 +155,7 @@
     let commandBusy = false;
     let testRunning = false;
     let tttState = null;
+    let customGameState = null;
     const privacyConsented = new Set();
 
     let customCommands = {};
@@ -240,7 +241,7 @@
       return '<Console> [' + provider + ']\n' + out;
     }
 
-    // --- TIC TAC TOE FUNCTIONS ---
+    // --- TIC TAC TOE (CLASSIC) FUNCTIONS ---
     function tttRenderBoard(board) {
       let out = '\n';
       for (let i = 0; i < 9; i++) {
@@ -257,9 +258,9 @@
 
     function tttCheckWin(board, player) {
       const wins = [
-        [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
-        [0, 3, 6], [1, 4, 7], [2, 5, 8], // cols
-        [0, 4, 8], [2, 4, 6]             // diagonals
+        [0, 1, 2], [3, 4, 5], [6, 7, 8],
+        [0, 3, 6], [1, 4, 7], [2, 5, 8],
+        [0, 4, 8], [2, 4, 6]
       ];
       return wins.some(combo => combo.every(idx => board[idx] === player));
     }
@@ -338,14 +339,12 @@
         }
       }
 
-      // Hard (85%), Insane (95%), Master (99%)
       let mistakeChance = 0;
       if (difficulty === 'hard') mistakeChance = 0.15;
       if (difficulty === 'insane') mistakeChance = 0.05;
       if (difficulty === 'master') mistakeChance = 0.01;
 
       if (mistakeChance > 0 && Math.random() < mistakeChance) {
-        // Make a random mistake
         return empty[Math.floor(Math.random() * empty.length)];
       }
 
@@ -355,7 +354,157 @@
 
       return empty[Math.floor(Math.random() * empty.length)];
     }
-    // ------------------------------
+
+    // --- CUSTOM GAME (ADJUSTABLE) FUNCTIONS ---
+    function customRenderBoard(state) {
+      let out = '\n';
+      for (let r = 0; r < state.height; r++) {
+        let rowStr = '';
+        for (let c = 0; c < state.width; c++) {
+          const idx = r * state.width + c;
+          const val = state.board[idx];
+          if (val === null) {
+            if (state.width <= 10 && state.height <= 10) {
+              const num = String(idx + 1).padStart(2, ' ');
+              rowStr += ' ' + num + ' ';
+            } else {
+              rowStr += '  .  ';
+            }
+          } else {
+            rowStr += '  ' + val + '  ';
+          }
+          if (c < state.width - 1) rowStr += '|';
+        }
+        out += rowStr + '\n';
+        if (r < state.height - 1) {
+          let divStr = '';
+          for (let c = 0; c < state.width; c++) {
+             divStr += '-----';
+             if (c < state.width - 1) divStr += '+';
+          }
+          out += divStr + '\n';
+        }
+      }
+      return out;
+    }
+
+    function customCheckWin(board, width, height, winLen, player) {
+      // Check horizontal
+      for (let r = 0; r < height; r++) {
+        for (let c = 0; c <= width - winLen; c++) {
+          let count = 0;
+          for (let i = 0; i < winLen; i++) {
+            if (board[r * width + c + i] === player) count++;
+            else break;
+          }
+          if (count === winLen) return true;
+        }
+      }
+      // Check vertical
+      for (let c = 0; c < width; c++) {
+        for (let r = 0; r <= height - winLen; r++) {
+          let count = 0;
+          for (let i = 0; i < winLen; i++) {
+            if (board[(r + i) * width + c] === player) count++;
+            else break;
+          }
+          if (count === winLen) return true;
+        }
+      }
+      // Check diagonal (top-left to bottom-right)
+      for (let r = 0; r <= height - winLen; r++) {
+        for (let c = 0; c <= width - winLen; c++) {
+          let count = 0;
+          for (let i = 0; i < winLen; i++) {
+            if (board[(r + i) * width + c + i] === player) count++;
+            else break;
+          }
+          if (count === winLen) return true;
+        }
+      }
+      // Check diagonal (top-right to bottom-left)
+      for (let r = 0; r <= height - winLen; r++) {
+        for (let c = winLen - 1; c < width; c++) {
+          let count = 0;
+          for (let i = 0; i < winLen; i++) {
+            if (board[(r + i) * width + c - i] === player) count++;
+            else break;
+          }
+          if (count === winLen) return true;
+        }
+      }
+      return false;
+    }
+
+    function customAIMove(state) {
+      const empty = state.board.map((val, idx) => val === null ? idx : null).filter(val => val !== null);
+      if (empty.length === 0) return -1;
+
+      // 1. Slip up chance
+      if (Math.random() < state.slipChance) {
+        const adjacent = empty.filter(idx => {
+          const r = Math.floor(idx / state.width);
+          const c = idx % state.width;
+          for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+              if (dr === 0 && dc === 0) continue;
+              const nr = r + dr, nc = c + dc;
+              if (nr >= 0 && nr < state.height && nc >= 0 && nc < state.width) {
+                if (state.board[nr * state.width + nc] !== null) return true;
+              }
+            }
+          }
+          return false;
+        });
+        if (adjacent.length > 0 && Math.random() < 0.8) {
+           return adjacent[Math.floor(Math.random() * adjacent.length)];
+        }
+        return empty[Math.floor(Math.random() * empty.length)];
+      }
+
+      // 2. Try to win
+      for (let i = 0; i < empty.length; i++) {
+        state.board[empty[i]] = state.aiPlayer;
+        if (customCheckWin(state.board, state.width, state.height, state.winLen, state.aiPlayer)) {
+          state.board[empty[i]] = null;
+          return empty[i];
+        }
+        state.board[empty[i]] = null;
+      }
+
+      // 3. Try to block player
+      for (let i = 0; i < empty.length; i++) {
+        state.board[empty[i]] = state.player;
+        if (customCheckWin(state.board, state.width, state.height, state.winLen, state.player)) {
+          state.board[empty[i]] = null;
+          return empty[i];
+        }
+        state.board[empty[i]] = null;
+      }
+
+      // 4. Play near existing pieces
+      const adjacent = empty.filter(idx => {
+        const r = Math.floor(idx / state.width);
+        const c = idx % state.width;
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            const nr = r + dr, nc = c + dc;
+            if (nr >= 0 && nr < state.height && nc >= 0 && nc < state.width) {
+              if (state.board[nr * state.width + nc] !== null) return true;
+            }
+          }
+        }
+        return false;
+      });
+      
+      if (adjacent.length > 0) {
+        return adjacent[Math.floor(Math.random() * adjacent.length)];
+      }
+      return empty[Math.floor(Math.random() * empty.length)];
+    }
+
+    // ----------------------------------------
 
     function openFilePicker() {
       const fileInput = document.createElement('input');
@@ -1421,6 +1570,7 @@
                      ' - meme (plays a random meme sound)\n' +
                      ' - play [sound] (plays a specific meme sound)\n' +
                      ' - ttt [difficulty] (starts a game of Tic-Tac-Toe. Difficulties: noob, easy, medium, hard, insane, master)\n' +
+                     ' - ttt ag [width] [height] [win] [slip%] [player] (Adjustable game. e.g., "ttt ag 5 9 4 5 x")\n' +
                      ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
                      ' - JS? [code] (run live JavaScript directly in browser)\n' +
                      ' - PY? [code] (run live Python via Pyodide)\n' +
@@ -1428,7 +1578,81 @@
                      ' - [offset] (shorthand for "time <offset>", e.g. "UTC+02:00" or "-5")\n\n' +
                      'Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/';
         } else if (cmdLower === 'ttt') {
-          if (tttState) {
+          if (arg.toLowerCase().startsWith('ag')) {
+            // ADJUSTABLE GAME MODE
+            const args = arg.split(' ').slice(1);
+            if (args.length === 0) {
+              response = '<Console> [Custom Game] Usage: ttt ag [width] [height] [win] [slip%] [x|o]\nExample: ttt ag 5 9 4 5 x';
+            } else if (args.length < 5) {
+              response = '<Console> [Custom Game] Invalid arguments. Need 5: width, height, win length, slip %, and player (x/o).\nExample: ttt ag 5 9 4 5 x';
+            } else {
+              const w = parseInt(args[0]);
+              const h = parseInt(args[1]);
+              const win = parseInt(args[2]);
+              const slip = parseFloat(args[3]) / 100;
+              const p = args[4].toLowerCase();
+
+              if (isNaN(w) || isNaN(h) || isNaN(win) || isNaN(slip) || (p !== 'x' && p !== 'o')) {
+                response = '<Console> [Custom Game] Invalid values. Make sure width/height/win are numbers, slip is a number, and player is x or o.';
+              } else if (w < 2 || h < 2 || win < 2) {
+                response = '<Console> [Custom Game] Board size and win length must be at least 2.';
+              } else if (win > w && win > h) {
+                response = '<Console> [Custom Game] Win length cannot be larger than both width and height.';
+              } else {
+                customGameState = {
+                  width: w,
+                  height: h,
+                  winLen: win,
+                  slipChance: slip,
+                  player: p.toUpperCase(),
+                  aiPlayer: p === 'x' ? 'O' : 'X',
+                  board: Array(w * h).fill(null)
+                };
+                
+                let initMsg = `<Console> [Custom Game] Started! Board: ${w}x${h}, Win length: ${win}, AI Slip Chance: ${args[3]}%. You are ${customGameState.player}.\n` + customRenderBoard(customGameState);
+                
+                if (customGameState.player === 'O') {
+                  // AI goes first
+                  const aiMove = customAIMove(customGameState);
+                  customGameState.board[aiMove] = customGameState.aiPlayer;
+                  initMsg += `\n<Console> The AI went first in the center.\n` + customRenderBoard(customGameState);
+                }
+                
+                initMsg += `\nTo play, type "ttt [number]" (e.g. ttt 1).`;
+                response = initMsg;
+              }
+            }
+          } else if (customGameState) {
+            // PLAYING CUSTOM GAME
+            let move = parseInt(arg);
+            if (move >= 1 && move <= customGameState.width * customGameState.height && customGameState.board[move - 1] === null) {
+              customGameState.board[move - 1] = customGameState.player;
+              
+              if (customCheckWin(customGameState.board, customGameState.width, customGameState.height, customGameState.winLen, customGameState.player)) {
+                response = '<Console> [Custom Game] You win!\n' + customRenderBoard(customGameState);
+                customGameState = null;
+              } else if (!customGameState.board.includes(null)) {
+                response = '<Console> [Custom Game] It\'s a draw!\n' + customRenderBoard(customGameState);
+                customGameState = null;
+              } else {
+                const aiMove = customAIMove(customGameState);
+                customGameState.board[aiMove] = customGameState.aiPlayer;
+                
+                if (customCheckWin(customGameState.board, customGameState.width, customGameState.height, customGameState.winLen, customGameState.aiPlayer)) {
+                  response = '<Console> [Custom Game] The AI wins!\n' + customRenderBoard(customGameState);
+                  customGameState = null;
+                } else if (!customGameState.board.includes(null)) {
+                  response = '<Console> [Custom Game] It\'s a draw!\n' + customRenderBoard(customGameState);
+                  customGameState = null;
+                } else {
+                  response = '<Console> [Custom Game] Your turn (' + customGameState.player + ').\n' + customRenderBoard(customGameState);
+                }
+              }
+            } else {
+              response = '<Console> [Custom Game] Invalid move. Pick an empty spot.\n' + customRenderBoard(customGameState);
+            }
+          } else if (tttState) {
+            // PLAYING CLASSIC GAME
             let move = parseInt(arg);
             if (move >= 1 && move <= 9 && tttState.board[move - 1] === null) {
               tttState.board[move - 1] = 'X';
@@ -1457,12 +1681,14 @@
               response = '<Console> [Tic-Tac-Toe] Invalid move. Pick an empty spot (1-9).\n' + tttRenderBoard(tttState.board);
             }
           } else {
+            // STARTING CLASSIC GAME
             const diff = arg.toLowerCase();
             if (['noob', 'easy', 'medium', 'hard', 'insane', 'master'].includes(diff)) {
               tttState = { board: Array(9).fill(null), difficulty: diff };
+              customGameState = null; // Ensure custom is cleared
               response = `<Console> [Tic-Tac-Toe] Game started on ${diff.toUpperCase()} mode. You are X.\n` + tttRenderBoard(tttState.board) + '\nType "ttt [1-9]" to make a move.';
             } else {
-              response = '<Console> [Tic-Tac-Toe] Pick a difficulty: "ttt noob", "ttt easy", "ttt medium", "ttt hard", "ttt insane", or "ttt master".';
+              response = '<Console> [Tic-Tac-Toe] Pick a difficulty: "ttt noob", "ttt easy", "ttt medium", "ttt hard", "ttt insane", or "ttt master".\nOr start an adjustable game: "ttt ag [width] [height] [win] [slip%] [x|o]"';
             }
           }
         } else if (cmdLower === 'meme') {
