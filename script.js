@@ -96,7 +96,7 @@
     }
 
     const WORKER_URL = 'https://console-ai-js.qwerty12345-1o1.workers.dev';
-    const SECRET_WORKER_URL = 'https://pegs.qwerty12345-1o1.workers.dev';
+    const SECRET_WORKER_URL = 'https://pegs.qwerty12345-1o1.workers.dev'; 
     
     const SCRIPT_ORIGIN = (function () {
       try {
@@ -184,6 +184,7 @@
     let isChatMode = false;
     let commandBusy = false;
     let testRunning = false;
+    let isTesting = false;
     let tttState = null;
     let customGameState = null;
     let privacyGateActive = false;
@@ -1206,7 +1207,7 @@
       const handler = (evt) => {
         if (evt.key === 'Enter') {
           evt.preventDefault();
-          evt.stopPropagation();
+          evt.stopImmediatePropagation();
 
           const val = input.value.trim().toLowerCase();
           
@@ -1568,6 +1569,7 @@
             return;
           }
           testRunning = true;
+          isTesting = true;
           resetInput();
           writeLine('<Console> [STARTING MEGA-TEST SEQUENCE...]');
 
@@ -1624,6 +1626,7 @@
 
           writeLine("<Console> [MEGA-TEST COMPLETE]");
           testRunning = false;
+          isTesting = false;
           maintainFocus();
           return;
         } else if (cmdLower === 'help') {
@@ -1822,11 +1825,18 @@
             playError();
             response = '<Console> Geolocation is not supported by this browser.';
           } else {
-            requirePrivacyConsent('whereami', () => {
+            if (isTesting) {
+              // Skip the gate during testing so it doesn't loop
               input.value = 'whereami';
               autoResize();
               input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-            });
+            } else {
+              requirePrivacyConsent('whereami', () => {
+                input.value = 'whereami';
+                autoResize();
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+              });
+            }
             return;
           }
         } else if (cmdLower === 'share') {
@@ -1942,11 +1952,17 @@
           resetInput();
           input.disabled = true;
           try {
-            requirePrivacyConsent('info', async () => {
+            if (isTesting) {
               await runInfo();
               input.disabled = false;
               maintainFocus();
-            });
+            } else {
+              requirePrivacyConsent('info', async () => {
+                await runInfo();
+                input.disabled = false;
+                maintainFocus();
+              });
+            }
           } catch (e) {
             input.disabled = false;
             maintainFocus();
