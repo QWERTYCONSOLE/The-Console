@@ -111,10 +111,27 @@
     errorSound.preload = 'auto';
     let audioUnlocked = false;
 
+    const memeSounds = {
+      'worcestershire': new Audio(SCRIPT_ORIGIN + '/Worcestershire sauce meme.mp3'),
+      'building': new Audio(SCRIPT_ORIGIN + "/Don't be racist, I Am A Building.mp3")
+    };
+    
+    Object.values(memeSounds).forEach(sound => {
+      sound.preload = 'auto';
+      sound.volume = 0.6;
+    });
+
     function playError() {
       if (audioUnlocked) {
         errorSound.currentTime = 0; 
         errorSound.play().catch(e => {});
+      }
+    }
+
+    function playMemeSound(type) {
+      if (audioUnlocked && memeSounds[type]) {
+        memeSounds[type].currentTime = 0;
+        memeSounds[type].play().catch(e => {});
       }
     }
 
@@ -190,15 +207,6 @@
       line.style.whiteSpace = 'pre-wrap';
       line.style.textAlign = 'left';
       line.textContent = text;
-      output.appendChild(line);
-      return line;
-    }
-
-    function writeHTML(html) {
-      const line = document.createElement('div');
-      line.style.whiteSpace = 'pre-wrap';
-      line.style.textAlign = 'left';
-      line.innerHTML = html;
       output.appendChild(line);
       return line;
     }
@@ -1615,7 +1623,7 @@
                      ' - echo [text] (prints text back)\n' +
                      ' - lines (shows total lines of console code)\n' +
                      ' - meme (plays a random meme sound)\n' +
-                     ' - play [sound] (plays a specific meme sound: butterdog, salami, eminem)\n' +
+                     ' - play [sound] (plays a specific meme sound: worcestershire, building)\n' +
                      ' - ttt [difficulty] (starts a game of Tic-Tac-Toe. Difficulties: noob, easy, medium, hard, insane, master)\n' +
                      ' - ttt ag [width] [height] [win] [slip%] [x|o] (Adjustable game. e.g., "ttt ag 5 9 4 5 x")\n' +
                      ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
@@ -1740,36 +1748,17 @@
             }
           }
         } else if (cmdLower === 'meme') {
-          const memes = ['butterdog', 'salami', 'eminem'];
-          const randomMeme = memes[Math.floor(Math.random() * memes.length)];
-          
-          let iframeSrc = '';
-          if (randomMeme === 'butterdog') iframeSrc = 'https://www.myinstants.com/instant/butter-dog-95803/embed/';
-          if (randomMeme === 'salami') iframeSrc = 'https://www.myinstants.com/instant/salami-lid-40686/embed/';
-          if (randomMeme === 'eminem') iframeSrc = 'https://www.myinstants.com/instant/eminem-vs-ibs-36106/embed/';
-
-          writeHTML(`<Console> 🎵 Playing meme sound: [${randomMeme.toUpperCase()}]\n<iframe width="110" height="200" src="${iframeSrc}" frameborder="0" scrolling="no" style="margin-top:10px; border:1px solid #00ff66; background:#000; border-radius: 5px;"></iframe>`);
-          
-          resetInput();
-          scrollToBottom();
-          maintainFocus();
-          return;
+          const keys = Object.keys(memeSounds);
+          const randomMeme = keys[Math.floor(Math.random() * keys.length)];
+          playMemeSound(randomMeme);
+          response = `<Console> 🎵 Playing meme sound: [${randomMeme.toUpperCase()}]`;
         } else if (cmdLower === 'play') {
-          let iframeSrc = '';
-          if (arg === 'butterdog') iframeSrc = 'https://www.myinstants.com/instant/butter-dog-95803/embed/';
-          else if (arg === 'salami') iframeSrc = 'https://www.myinstants.com/instant/salami-lid-40686/embed/';
-          else if (arg === 'eminem') iframeSrc = 'https://www.myinstants.com/instant/eminem-vs-ibs-36106/embed/';
-          
-          if (iframeSrc) {
-            writeHTML(`<Console> 🎵 Playing: ${arg}\n<iframe width="110" height="200" src="${iframeSrc}" frameborder="0" scrolling="no" style="margin-top:10px; border:1px solid #00ff66; background:#000; border-radius: 5px;"></iframe>`);
+          if (memeSounds[arg]) {
+            playMemeSound(arg);
+            response = `<Console> 🎵 Playing: ${arg}`;
           } else {
-            writeLine(`<Console> Sound not found. Available: butterdog, salami, eminem`);
+            response = `<Console> Sound not found. Available: ${Object.keys(memeSounds).join(', ')}`;
           }
-          
-          resetInput();
-          scrollToBottom();
-          maintainFocus();
-          return;
         } else if (cmdLower === 'copy') {
           if (!arg) {
             response = '<Console> Usage: copy [text]';
