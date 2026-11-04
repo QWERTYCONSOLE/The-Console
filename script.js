@@ -436,7 +436,7 @@
       return false;
     }
 
-    function customAIMove(state) {
+    function customAI_Move(state) {
       const empty = state.board.map((val, idx) => val === null ? idx : null).filter(val => val !== null);
       if (empty.length === 0) return -1;
 
@@ -1570,7 +1570,7 @@
                      ' - meme (plays a random meme sound)\n' +
                      ' - play [sound] (plays a specific meme sound)\n' +
                      ' - ttt [difficulty] (starts a game of Tic-Tac-Toe. Difficulties: noob, easy, medium, hard, insane, master)\n' +
-                     ' - ttt ag [width] [height] [win] [slip%] [player] (Adjustable game. e.g., "ttt ag 5 9 4 5 x")\n' +
+                     ' - ttt ag [width] [height] [win] [slip%] [x|o] (Adjustable game. e.g., "ttt ag 5 9 4 5 x")\n' +
                      ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
                      ' - JS? [code] (run live JavaScript directly in browser)\n' +
                      ' - PY? [code] (run live Python via Pyodide)\n' +
@@ -1612,8 +1612,7 @@
                 let initMsg = `<Console> [Custom Game] Started! Board: ${w}x${h}, Win length: ${win}, AI Slip Chance: ${args[3]}%. You are ${customGameState.player}.\n` + customRenderBoard(customGameState);
                 
                 if (customGameState.player === 'O') {
-                  // AI goes first
-                  const aiMove = customAIMove(customGameState);
+                  const aiMove = customAI_Move(customGameState);
                   customGameState.board[aiMove] = customGameState.aiPlayer;
                   initMsg += `\n<Console> The AI went first in the center.\n` + customRenderBoard(customGameState);
                 }
@@ -1635,7 +1634,7 @@
                 response = '<Console> [Custom Game] It\'s a draw!\n' + customRenderBoard(customGameState);
                 customGameState = null;
               } else {
-                const aiMove = customAIMove(customGameState);
+                const aiMove = customAI_Move(customGameState);
                 customGameState.board[aiMove] = customGameState.aiPlayer;
                 
                 if (customCheckWin(customGameState.board, customGameState.width, customGameState.height, customGameState.winLen, customGameState.aiPlayer)) {
@@ -1687,8 +1686,10 @@
               tttState = { board: Array(9).fill(null), difficulty: diff };
               customGameState = null; // Ensure custom is cleared
               response = `<Console> [Tic-Tac-Toe] Game started on ${diff.toUpperCase()} mode. You are X.\n` + tttRenderBoard(tttState.board) + '\nType "ttt [1-9]" to make a move.';
-            } else {
+            } else if (diff === '') {
               response = '<Console> [Tic-Tac-Toe] Pick a difficulty: "ttt noob", "ttt easy", "ttt medium", "ttt hard", "ttt insane", or "ttt master".\nOr start an adjustable game: "ttt ag [width] [height] [win] [slip%] [x|o]"';
+            } else {
+              response = '<Console> [Tic-Tac-Toe] Invalid difficulty. Type "ttt" for options.';
             }
           }
         } else if (cmdLower === 'meme') {
