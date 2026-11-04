@@ -1398,7 +1398,6 @@
             // --- EASTER EGG MATRIX TRIGGER ---
             if (cloudResult.triggerMatrix) {
               if (!matrixInterval) toggleMatrix();
-              writeLine('<Console> [SYSTEM BREACHED... JUST KIDDING.] 🟩 Type "matrix" to turn it off.');
             }
             
           } else if (ollamaEnabled) {
@@ -1514,7 +1513,6 @@
             // --- EASTER EGG MATRIX TRIGGER ---
             if (cloudResult.triggerMatrix) {
               if (!matrixInterval) toggleMatrix();
-              writeLine('<Console> [SYSTEM BREACHED... JUST KIDDING.] 🟩 Type "matrix" to turn it off.');
             }
             
           } else if (ollamaEnabled) {
@@ -1724,7 +1722,7 @@
               }
             }
           } else if (customGameState) {
-            // PLAYING CUSTOM GAME
+
             let move = parseInt(arg);
             if (move >= 1 && move <= customGameState.width * customGameState.height && customGameState.board[move - 1] === null) {
               customGameState.board[move - 1] = customGameState.player;
@@ -1753,7 +1751,7 @@
               response = '<Console> [Custom Game] Invalid move. Pick an empty spot.\n' + customRenderBoard(customGameState);
             }
           } else if (tttState) {
-            // PLAYING CLASSIC GAME
+
             let move = parseInt(arg);
             if (move >= 1 && move <= 9 && tttState.board[move - 1] === null) {
               tttState.board[move - 1] = 'X';
@@ -2229,10 +2227,8 @@
         } else if (cmdLower === 'time') {
           response = arg ? '<Console> Time (' + arg.toUpperCase() + '): ' + parseOffsetTime(arg) : '<Console> Local time: ' + new Date().toLocaleTimeString();
         
-        } else if (fullInput === 'CREATORISQWERTY I AM THE CREATOR') {
-          response = '<Console> [Creator] Clearance verified. Welcome back, QWERTY.';
         } else {
-          // Check with the secret worker first
+          
           try {
             const secretRes = await fetch(SECRET_WORKER_URL, {
               method: 'POST',
@@ -2242,11 +2238,12 @@
             
             if (secretRes.ok) {
               const secretData = await secretRes.json();
-              if (secretData.text) {
+              if (secretData.isCreator) {
+                response = '<Console> [Creator] Clearance verified. Welcome back, QWERTY.';
+              } else if (secretData.text) {
                 writeLine(secretData.text);
                 if (secretData.triggerMatrix) {
                   if (!matrixInterval) toggleMatrix();
-                  writeLine('<Console> [SYSTEM BREACHED... JUST KIDDING.] 🟩 Type "matrix" to turn it off.');
                 }
                 resetInput();
                 scrollToBottom();
@@ -2255,16 +2252,18 @@
               }
             }
           } catch (e) {
-            // If the secret worker fails, just ignore it and move on
+
           }
 
-          // If we get here, it's not a secret command
-          playError();
-          writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
-          resetInput();
-          scrollToBottom();
-          maintainFocus();
-          return;
+          if (!response) {
+            
+            playError();
+            writeLine('<Console> Command not recognized: "' + fullInput + '". Type "help" for options.');
+            resetInput();
+            scrollToBottom();
+            maintainFocus();
+            return;
+          }
         }
 
         writeLine(response);
