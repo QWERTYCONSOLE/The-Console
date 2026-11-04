@@ -363,24 +363,23 @@
         for (let c = 0; c < state.width; c++) {
           const idx = r * state.width + c;
           const val = state.board[idx];
+          let cellContent = '';
+          
           if (val === null) {
-            if (state.width <= 10 && state.height <= 10) {
-              const num = String(idx + 1).padStart(2, ' ');
-              rowStr += ' ' + num + ' ';
-            } else {
-              rowStr += '  .  ';
-            }
+            cellContent = String(idx + 1).padStart(3, ' ');
           } else {
-            rowStr += '  ' + val + '  ';
+            cellContent = '  ' + val + '  ';
           }
+          
+          rowStr += cellContent;
           if (c < state.width - 1) rowStr += '|';
         }
         out += rowStr + '\n';
+        
         if (r < state.height - 1) {
           let divStr = '';
           for (let c = 0; c < state.width; c++) {
-             divStr += '-----';
-             if (c < state.width - 1) divStr += '+';
+             divStr += '---+';
           }
           out += divStr + '\n';
         }
@@ -1071,7 +1070,7 @@
           if (data.responses && data.responses.length > 0) {
              chatHistory.push({ role: 'assistant', content: data.responses[0].text });
           }
-          return { success: true, responses: data.responses };
+          return { success: true, responses: data.responses, errors: data.errors };
         } else {
           playError();
           return { success: false, error: data.error || "Unknown worker error" };
@@ -1315,6 +1314,14 @@
                 line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
               });
             }
+            
+            // Print errors for failed AIs in chat mode
+            if (cloudResult.errors && cloudResult.errors.length > 0) {
+              cloudResult.errors.forEach(err => {
+                const line = writeLine(`<Console> [Error] ${err.provider} failed: ${err.error}`);
+                line.style.color = '#ff6b6b';
+              });
+            }
           } else if (ollamaEnabled) {
             writeLine('<Console> [Chat Error]: ' + (cloudResult.error || 'cloud failed') + ' — trying local Ollama...');
             const ollamaResult = await callOllama(fullInput);
@@ -1415,6 +1422,14 @@
               cloudResult.responses.forEach(res => {
                 const line = writeLine(formatAIResponse(res.provider, res.text) + '\n---');
                 line.style.color = PROVIDER_COLORS[res.provider] || 'inherit';
+              });
+            }
+            
+            // Print errors for failed AIs in multi mode
+            if (cloudResult.errors && cloudResult.errors.length > 0) {
+              cloudResult.errors.forEach(err => {
+                const line = writeLine(`<Console> [Error] ${err.provider} failed: ${err.error}`);
+                line.style.color = '#ff6b6b';
               });
             }
           } else if (ollamaEnabled) {
