@@ -976,6 +976,74 @@
     async function runInfo() {
       writeLine('<Console> [Gathering System & API Info...]');
       
+      writeLine('\n--- [NETWORK & IP] ---');
+      try {
+        const ipRes = await fetch('https://ipapi.co/json/');
+        if (ipRes.ok) {
+          const ipData = await ipRes.json();
+          writeLine(`Public IP: ${ipData.ip}`);
+          writeLine(`Location: ${ipData.city}, ${ipData.region}, ${ipData.country_name}`);
+          writeLine(`ISP / Org: ${ipData.org}`);
+          writeLine(`Timezone: ${ipData.timezone}`);
+        } else {
+          writeLine('IP Fetch: Failed');
+        }
+      } catch (e) {
+        writeLine('IP Fetch: Blocked or Offline');
+      }
+
+      writeLine('\n--- [GPU / RENDERER] ---');
+      try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (gl) {
+          const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+          if (debugInfo) {
+            const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+            const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+            writeLine(`GPU Vendor: ${vendor}`);
+            writeLine(`GPU Renderer: ${renderer}`);
+          } else {
+            writeLine('GPU Info: WebGL debug extension not supported.');
+          }
+        } else {
+          writeLine('GPU Info: WebGL not supported.');
+        }
+      } catch (e) {
+        writeLine('GPU Info: Blocked by browser');
+      }
+
+      writeLine('\n--- [HARDWARE (Estimated)] ---');
+      writeLine(`CPU Cores (Logical): ${navigator.hardwareConcurrency || 'Unknown'}`);
+      writeLine(`Device Memory (Est): ${navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'Unknown'}`);
+      writeLine(`Max Touch Points: ${navigator.maxTouchPoints || 0}`);
+      
+      if (navigator.getBattery) {
+        try {
+          const battery = await navigator.getBattery();
+          writeLine(`Battery: ${Math.round(battery.level * 100)}% ${battery.charging ? '(Charging)' : '(Discharging)'}`);
+        } catch (e) {
+          writeLine(`Battery: Unavailable`);
+        }
+      } else {
+        writeLine(`Battery: API not supported`);
+      }
+
+      writeLine('\n--- [OS & BROWSER] ---');
+      writeLine(`OS (Platform): ${navigator.platform}`);
+      writeLine(`Browser: ${navigator.userAgent.includes('Brave') ? 'Brave' : 'Chromium/Other'}`);
+      writeLine(`User Agent: ${navigator.userAgent}`);
+      writeLine(`Language: ${navigator.language}`);
+      writeLine(`Cookie Enabled: ${navigator.cookieEnabled}`);
+
+      writeLine('\n--- [DISPLAY & SCREEN] ---');
+      writeLine(`Screen Resolution: ${window.screen.width}x${window.screen.height}`);
+      writeLine(`Available Screen: ${window.screen.availWidth}x${window.screen.availHeight}`);
+      writeLine(`Window Size: ${window.innerWidth}x${window.innerHeight}`);
+      writeLine(`Color Depth: ${window.screen.colorDepth}-bit`);
+      writeLine(`Pixel Ratio: ${window.devicePixelRatio}`);
+      writeLine(`Orientation: ${window.screen.orientation ? window.screen.orientation.type : 'Unknown'}`);
+
       writeLine('\n--- [CLOUD APIS] ---');
       try {
         const res = await fetch(WORKER_URL, { method: 'GET' });
@@ -991,55 +1059,6 @@
       } catch (err) {
         playError();
         writeLine(`Worker Error: Could not reach ${WORKER_URL}`);
-      }
-
-      writeLine('\n--- [LOCAL OLLAMA] ---');
-      writeLine(`Ollama Enabled: ${ollamaEnabled ? 'YES' : 'NO'}`);
-      writeLine(`Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/`);
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch('http://127.0.0.1:11434/', { method: 'GET', signal: controller.signal });
-        clearTimeout(timeoutId);
-        if (res.ok) {
-          writeLine('Ollama Engine: ACTIVE (127.0.0.1:11434)');
-        } else {
-          playError();
-          writeLine(`Ollama Engine: ERROR (HTTP ${res.status})`);
-        }
-      } catch (err) {
-        playError();
-        writeLine('Ollama Engine: OFFLINE');
-      }
-
-      writeLine('\n--- [LOCAL ENGINES] ---');
-      writeLine(`Python (Pyodide): ${pyodideInstance ? 'LOADED' : 'NOT LOADED'}`);
-      try {
-        localStorage.setItem('diag_test', '1');
-        localStorage.removeItem('diag_test');
-        writeLine(`LocalStorage: ACTIVE (Notes & History are saving)`);
-      } catch (e) {
-        writeLine(`LocalStorage: POLYFILLED (Notes & History are in-memory)`);
-      }
-
-      writeLine('\n--- [ENVIRONMENT] ---');
-      writeLine(`Browser: ${navigator.userAgent.includes('Brave') ? 'Brave' : 'Chromium/Other'}`);
-      writeLine(`User Agent: ${navigator.userAgent}`);
-      writeLine(`OS (Platform): ${navigator.platform}`);
-      writeLine(`Screen Resolution: ${window.screen.width}x${window.screen.height}`);
-      writeLine(`Window Size: ${window.innerWidth}x${window.innerHeight}`);
-      writeLine(`CPU Cores: ${navigator.hardwareConcurrency || 'Unknown'}`);
-      writeLine(`Device Memory: ${navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'Unknown'}`);
-      
-      if (navigator.getBattery) {
-        try {
-          const battery = await navigator.getBattery();
-          writeLine(`Battery: ${Math.round(battery.level * 100)}% ${battery.charging ? '(Charging)' : '(Discharging)'}`);
-        } catch (e) {
-          writeLine(`Battery: Unavailable`);
-        }
-      } else {
-        writeLine(`Battery: API not supported`);
       }
 
       writeLine('\n<Console> [Info Complete]');
@@ -1151,7 +1170,7 @@
       privacyGateActive = true;
 
       writeLine('<Console> [WARNING - PRIVACY ADVISORY]');
-      writeLine('The "' + subject + '" command will display sensitive system information (OS, hardware, browser details).');
+      writeLine('The "' + subject + '" command will display sensitive system information (Public IP, location, OS, hardware, browser details).');
       writeLine('If you are streaming, recording, or screen-sharing, please PAUSE your stream or END it now.');
       writeLine('Type "agree" to continue, or "end" to cancel.');
       scrollToBottom();
@@ -1315,7 +1334,6 @@
               });
             }
             
-            // Print errors for failed AIs in chat mode
             if (cloudResult.errors && cloudResult.errors.length > 0) {
               cloudResult.errors.forEach(err => {
                 const line = writeLine(`<Console> [Error] ${err.provider} failed: ${err.error}`);
@@ -1425,7 +1443,6 @@
               });
             }
             
-            // Print errors for failed AIs in multi mode
             if (cloudResult.errors && cloudResult.errors.length > 0) {
               cloudResult.errors.forEach(err => {
                 const line = writeLine(`<Console> [Error] ${err.provider} failed: ${err.error}`);
@@ -2019,7 +2036,6 @@
                      ' - Total: ' + CURRENT_LINE_COUNT + ' lines';
         } else if (cmdLower === 'clear') {
           if (commandLog.length > 0) {
-            // Remove the history command output from the saved text
             let textContent = output.textContent;
             if (textContent.includes('Archived Sessions:')) {
                 const parts = textContent.split('Archived Sessions:');
