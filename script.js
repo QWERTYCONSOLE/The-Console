@@ -567,7 +567,7 @@
     }
 
     async function runLinux() {
-      writeLine('<Console> [Downloading Linux Emulator...]');
+      writeLine('<Console> [Downloading KolibriOS...]');
       scrollToBottom();
       
       linuxWrapper = document.createElement('div');
@@ -598,16 +598,16 @@
         const emulator = new window.V86({
           wasm_path: 'https://cdn.jsdelivr.net/npm/v86@0.5.472/build/v86.wasm',
           memory_size: 64 * 1024 * 1024,
-          vga_memory_size: 2 * 1024 * 1024,
+          vga_memory_size: 8 * 1024 * 1024, 
           screen_container: linuxWrapper,
           bios: { url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin' },
           vga_bios: { url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin' },
-          cdrom: { url: 'https://copy.sh/v86/images/linux.iso' },
+          fda: { url: 'https://copy.sh/v86/images/kolibrios.img' },
           autostart: true,
         });
 
-        writeLine('<Console> [Linux OS is booting... (It may take 10-30 seconds)]');
-        writeLine('<Console> [Click on the black screen below to control the keyboard. Type "exit" to close it.]');
+        writeLine('<Console> [KolibriOS is booting... (It should take 3-5 seconds)]');
+        writeLine('<Console> [Click on the screen below to control the mouse and keyboard. Type "exit" to close it.]');
         scrollToBottom();
         
         linuxWrapper.addEventListener('click', (e) => {
