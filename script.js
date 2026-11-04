@@ -602,7 +602,7 @@
           screen_container: linuxWrapper,
           bios: { url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin' },
           vga_bios: { url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin' },
-          fda: { url: 'https://copy.sh/v86/images/kolibrios.img' },
+          fda: { url: 'https://raw.githubusercontent.com/copy/images/master/kolibrios.img' },
           autostart: true,
         });
 
@@ -1616,8 +1616,8 @@
                      ' - ollama on / ollama off (toggle local CPU AI fallback)\n' +
                      ' - chat (starts a persistent conversation with AI memory)\n' +
                      ' - terminal (spawns another terminal inside this one)\n' +
-                     ' - linux (boots a tiny Linux OS inside a canvas window)\n' +
-                     ' - exit (closes the Linux emulator window)\n' +
+                     ' - linux (boots KolibriOS inside a canvas window)\n' +
+                     ' - exit (closes the KolibriOS window)\n' +
                      ' - sandbox (opens a visual JS/Python playground)\n' +
                      ' - file (opens a file picker to load text/code into the terminal)\n' +
                      ' - note [text] (saves a persistent text note)\n' +
