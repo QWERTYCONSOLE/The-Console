@@ -419,7 +419,6 @@
     }
 
     function customCheckWin(board, width, height, winLen, player) {
-      // Check horizontal
       for (let r = 0; r < height; r++) {
         for (let c = 0; c <= width - winLen; c++) {
           let count = 0;
@@ -430,7 +429,6 @@
           if (count === winLen) return true;
         }
       }
-      // Check vertical
       for (let c = 0; c < width; c++) {
         for (let r = 0; r <= height - winLen; r++) {
           let count = 0;
@@ -441,7 +439,6 @@
           if (count === winLen) return true;
         }
       }
-      // Check diagonal (top-left to bottom-right)
       for (let r = 0; r <= height - winLen; r++) {
         for (let c = 0; c <= width - winLen; c++) {
           let count = 0;
@@ -452,7 +449,6 @@
           if (count === winLen) return true;
         }
       }
-      // Check diagonal (top-right to bottom-left)
       for (let r = 0; r <= height - winLen; r++) {
         for (let c = winLen - 1; c < width; c++) {
           let count = 0;
@@ -470,7 +466,6 @@
       const empty = state.board.map((val, idx) => val === null ? idx : null).filter(val => val !== null);
       if (empty.length === 0) return -1;
 
-      // 1. Slip up chance
       if (Math.random() < state.slipChance) {
         const adjacent = empty.filter(idx => {
           const r = Math.floor(idx / state.width);
@@ -492,7 +487,6 @@
         return empty[Math.floor(Math.random() * empty.length)];
       }
 
-      // 2. Try to win
       for (let i = 0; i < empty.length; i++) {
         state.board[empty[i]] = state.aiPlayer;
         if (customCheckWin(state.board, state.width, state.height, state.winLen, state.aiPlayer)) {
@@ -502,7 +496,6 @@
         state.board[empty[i]] = null;
       }
 
-      // 3. Try to block player
       for (let i = 0; i < empty.length; i++) {
         state.board[empty[i]] = state.player;
         if (customCheckWin(state.board, state.width, state.height, state.winLen, state.player)) {
@@ -512,7 +505,6 @@
         state.board[empty[i]] = null;
       }
 
-      // 4. Play near existing pieces
       const adjacent = empty.filter(idx => {
         const r = Math.floor(idx / state.width);
         const c = idx % state.width;
@@ -567,58 +559,47 @@
     }
 
     async function runLinux() {
-      writeLine('<Console> [Downloading KolibriOS...]');
+      writeLine('<Console> [Opening Linux Emulator...]');
+      writeLine("<Console> Note: To save your device's memory and keep The Console fast, Linux now opens in a separate tab using the official V86 emulator.");
       scrollToBottom();
-      
-      linuxWrapper = document.createElement('div');
-      linuxWrapper.className = 'emulator-wrapper';
-      linuxWrapper.tabIndex = 0; 
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = 640;
-      canvas.height = 400;
-      canvas.style.cssText = 'display: block;';
-      
-      linuxWrapper.appendChild(canvas);
-      output.appendChild(linuxWrapper);
-      
-      setTimeout(() => linuxWrapper.scrollIntoView({ behavior: 'smooth', block: 'end' }), 100);
 
-      try {
-        if (!window.V86) {
-          await new Promise((resolve, reject) => {
-            const s = document.createElement('script');
-            s.src = 'https://cdn.jsdelivr.net/npm/v86@0.5.472/build/libv86.js';
-            s.onload = resolve;
-            s.onerror = () => reject(new Error("Failed to load v86 script"));
-            document.head.appendChild(s);
-          });
+      const linuxUI = document.createElement('div');
+      linuxUI.style.cssText = 'border: 1px solid #00ff66; padding: 15px; margin-top: 10px; background: #050505; max-width: 500px; font-family: monospace; text-align: left;';
+      linuxUI.innerHTML = `
+        <div style="margin-bottom: 10px;">Select a Linux distribution to boot:</div>
+        <select id="linux-distro" style="background: #0d0d0d; color: #00ff66; border: 1px solid #00ff66; padding: 5px; font-family: monospace; width: 100%; margin-bottom: 10px;">
+          <option value="archlinux">Arch Linux (15+ MB - Modern, Xorg, Firefox)</option>
+          <option value="buildroot">Buildroot Linux (4.9 MB - Minimal, Lua, ping, curl)</option>
+          <option value="dsl">Damn Small Linux (50 MB - Historic, Firefox 2.0)</option>
+        </select>
+        <button id="boot-linux-btn" style="background: #00ff66; color: #000; border: none; padding: 8px 15px; font-weight: bold; cursor: pointer; font-family: monospace; width: 100%;">🚀 Boot Linux in New Tab</button>
+      `;
+      output.appendChild(linuxUI);
+      scrollToBottom();
+
+      const bootBtn = document.getElementById('boot-linux-btn');
+      const distroSelect = document.getElementById('linux-distro');
+
+      bootBtn.onclick = () => {
+        const distro = distroSelect.value;
+        let url = '';
+
+        if (distro === 'archlinux') {
+          url = 'https://copy.sh/v86/?profile=archlinux';
+        } else if (distro === 'buildroot') {
+          url = 'https://copy.sh/v86/?profile=buildroot';
+        } else if (distro === 'dsl') {
+          url = 'https://copy.sh/v86/?profile=dsl';
         }
 
-        const emulator = new window.V86({
-          wasm_path: 'https://cdn.jsdelivr.net/npm/v86@0.5.472/build/v86.wasm',
-          memory_size: 64 * 1024 * 1024,
-          vga_memory_size: 8 * 1024 * 1024, 
-          screen_container: linuxWrapper,
-          bios: { url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin' },
-          vga_bios: { url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin' },
-          fda: { url: 'https://raw.githubusercontent.com/copy/images/master/kolibrios.img' },
-          autostart: true,
-        });
-
-        writeLine('<Console> [KolibriOS is booting... (It should take 3-5 seconds)]');
-        writeLine('<Console> [Click on the screen below to control the mouse and keyboard. Type "exit" to close it.]');
-        scrollToBottom();
-        
-        linuxWrapper.addEventListener('click', (e) => {
-          e.stopPropagation(); 
-          linuxWrapper.focus();     
-        });
-        
-      } catch (err) {
-        playError();
-        writeLine('<Console> [Emulator Error]: Failed to load v86. ' + err.message);
-      }
+        if (url) {
+          writeLine(`<Console> Launching ${distro.toUpperCase()}... (Please allow popups for this site)`);
+          window.open(url, '_blank');
+          
+          linuxUI.remove();
+          maintainFocus();
+        }
+      };
     }
 
     function toggleMatrix() {
@@ -1616,8 +1597,7 @@
                      ' - ollama on / ollama off (toggle local CPU AI fallback)\n' +
                      ' - chat (starts a persistent conversation with AI memory)\n' +
                      ' - terminal (spawns another terminal inside this one)\n' +
-                     ' - linux (boots KolibriOS inside a canvas window)\n' +
-                     ' - exit (closes the KolibriOS window)\n' +
+                     ' - linux (opens the v86 Linux emulator in a new tab)\n' +
                      ' - sandbox (opens a visual JS/Python playground)\n' +
                      ' - file (opens a file picker to load text/code into the terminal)\n' +
                      ' - note [text] (saves a persistent text note)\n' +
@@ -1642,6 +1622,8 @@
                      ' - time (shows local time; "time UTC+5" or just "UTC+5" / "-5" for an offset)\n' +
                      ' - [offset] (shorthand for "time <offset>", e.g. "UTC+02:00" or "-5")\n\n' +
                      'Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/';
+        } else if (cmdLower === 'hack') {
+          response = '<Console> Dude thats not how it works, you cant just type hack and its hacked.';
         } else if (cmdLower === 'ttt') {
           if (arg.toLowerCase().startsWith('ag')) {
             // ADJUSTABLE GAME MODE
@@ -2241,3 +2223,4 @@
   
   (0, eval)(window.__TERMINAL_SCRIPT__);
 })();
+
