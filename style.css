@@ -94,5 +94,5 @@ body {
     background: #00ff66;
     height: 100%;
     width: 0%;
-    transition: width 0.2s;
+    transition: width 0.2s; /* Fixed missing 's' */
 }
