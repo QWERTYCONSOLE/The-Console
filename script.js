@@ -1,6 +1,5 @@
 (function() {
   window.__TERMINAL_SCRIPT__ = "(" + (function() {
-    // ... (Keep getFakeStorage, storage overrides, and history logic exactly as is) ...
     function getFakeStorage() {
       const memStore = {};
       return {
@@ -202,7 +201,6 @@
       
       if (lang === 'js') {
         escaped = escaped.replace(/\b(let|const|var|function|return|if|else|for|while|class|new|import|export|from|try|catch|await|async|typeof|instanceof)\b/g, `<span style="color: ${codeColors.keyword}; font-weight: bold;">$1</span>`);
-        // Fixed regex to handle escaped quotes in strings
         escaped = escaped.replace(/(['"`])((?:\\.|(?!\1).)*)\1/g, `<span style="color: ${codeColors.string};">$1$2$1</span>`);
         escaped = escaped.replace(/\b(\d+(\.\d+)?)\b/g, `<span style="color: ${codeColors.number};">$1</span>`);
         escaped = escaped.replace(/(\/\/.*)/g, `<span style="color: ${codeColors.comment}; font-style: italic;">$1</span>`);
@@ -222,7 +220,181 @@
       return '<Console> [' + provider + ']\n' + out;
     }
 
-    // ... (Keep Tic Tac Toe and Custom Game functions exactly as is) ...
+    function tttRenderBoard(board) {
+      let out = '\n';
+      for (let i = 0; i < 9; i++) {
+        out += ' ' + (board[i] || (i + 1)) + ' ';
+        if ((i + 1) % 3 === 0) {
+          out += '\n';
+          if (i < 6) out += '---+---+---\n';
+        } else out += '|';
+      }
+      return out;
+    }
+
+    function tttCheckWin(board, player) {
+      const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+      return wins.some(combo => combo.every(idx => board[idx] === player));
+    }
+
+    function tttMinimax(newBoard, player) {
+      const availSpots = newBoard.map((val, idx) => val === null ? idx : null).filter(val => val !== null);
+      if (tttCheckWin(newBoard, 'X')) return { score: -10 };
+      else if (tttCheckWin(newBoard, 'O')) return { score: 10 };
+      else if (availSpots.length === 0) return { score: 0 };
+
+      const moves = [];
+      for (let i = 0; i < availSpots.length; i++) {
+        const move = {};
+        move.index = availSpots[i];
+        newBoard[availSpots[i]] = player;
+        if (player === 'O') { const result = tttMinimax(newBoard, 'X'); move.score = result.score; } 
+        else { const result = tttMinimax(newBoard, 'O'); move.score = result.score; }
+        newBoard[availSpots[i]] = null;
+        moves.push(move);
+      }
+
+      let bestMove;
+      if (player === 'O') {
+        let bestScore = -10000;
+        for (let i = 0; i < moves.length; i++) { if (moves[i].score > bestScore) { bestScore = moves[i].score; bestMove = i; } }
+      } else {
+        let bestScore = 10000;
+        for (let i = 0; i < moves.length; i++) { if (moves[i].score < bestScore) { bestScore = moves[i].score; bestMove = i; } }
+      }
+      return moves[bestMove];
+    }
+
+    function tttAIMove(board, difficulty) {
+      const empty = board.map((val, idx) => val === null ? idx : null).filter(val => val !== null);
+      if (empty.length === 0) return -1;
+      if (difficulty === 'noob') return empty[Math.floor(Math.random() * empty.length)];
+
+      if (difficulty === 'easy' || difficulty === 'medium') {
+        for (let i = 0; i < 9; i++) {
+          if (board[i] === null) { board[i] = 'O'; if (tttCheckWin(board, 'O')) { board[i] = null; return i; } board[i] = null; }
+        }
+        for (let i = 0; i < 9; i++) {
+          if (board[i] === null) { board[i] = 'X'; if (tttCheckWin(board, 'X')) { board[i] = null; return i; } board[i] = null; }
+        }
+        if (difficulty === 'medium' && Math.random() < 0.5) return tttMinimax(board, 'O').index;
+      }
+
+      let mistakeChance = 0;
+      if (difficulty === 'hard') mistakeChance = 0.15;
+      if (difficulty === 'insane') mistakeChance = 0.05;
+      if (difficulty === 'master') mistakeChance = 0.01;
+
+      if (mistakeChance > 0 && Math.random() < mistakeChance) return empty[Math.floor(Math.random() * empty.length)];
+      if (difficulty === 'hard' || difficulty === 'insane' || difficulty === 'master') return tttMinimax(board, 'O').index;
+      return empty[Math.floor(Math.random() * empty.length)];
+    }
+
+    function customRenderBoard(state) {
+      let out = '\n';
+      for (let r = 0; r < state.height; r++) {
+        let rowStr = '';
+        for (let c = 0; c < state.width; c++) {
+          const idx = r * state.width + c;
+          const val = state.board[idx];
+          let cellContent = val === null ? String(idx + 1).padStart(3, ' ') : '  ' + val + '  ';
+          rowStr += cellContent;
+          if (c < state.width - 1) rowStr += '|';
+        }
+        out += rowStr + '\n';
+        if (r < state.height - 1) {
+          let divStr = '';
+          for (let c = 0; c < state.width; c++) divStr += '---+';
+          out += divStr + '\n';
+        }
+      }
+      return out;
+    }
+
+    function customCheckWin(board, width, height, winLen, player) {
+      for (let r = 0; r < height; r++) {
+        for (let c = 0; c <= width - winLen; c++) {
+          let count = 0;
+          for (let i = 0; i < winLen; i++) { if (board[r * width + c + i] === player) count++; else break; }
+          if (count === winLen) return true;
+        }
+      }
+      for (let c = 0; c < width; c++) {
+        for (let r = 0; r <= height - winLen; r++) {
+          let count = 0;
+          for (let i = 0; i < winLen; i++) { if (board[(r + i) * width + c] === player) count++; else break; }
+          if (count === winLen) return true;
+        }
+      }
+      for (let r = 0; r <= height - winLen; r++) {
+        for (let c = 0; c <= width - winLen; c++) {
+          let count = 0;
+          for (let i = 0; i < winLen; i++) { if (board[(r + i) * width + c + i] === player) count++; else break; }
+          if (count === winLen) return true;
+        }
+      }
+      for (let r = 0; r <= height - winLen; r++) {
+        for (let c = winLen - 1; c < width; c++) {
+          let count = 0;
+          for (let i = 0; i < winLen; i++) { if (board[(r + i) * width + c - i] === player) count++; else break; }
+          if (count === winLen) return true;
+        }
+      }
+      return false;
+    }
+
+    function customAI_Move(state) {
+      const empty = state.board.map((val, idx) => val === null ? idx : null).filter(val => val !== null);
+      if (empty.length === 0) return -1;
+
+      if (Math.random() < state.slipChance) {
+        const adjacent = empty.filter(idx => {
+          const r = Math.floor(idx / state.width);
+          const c = idx % state.width;
+          for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+              if (dr === 0 && dc === 0) continue;
+              const nr = r + dr, nc = c + dc;
+              if (nr >= 0 && nr < state.height && nc >= 0 && nc < state.width) {
+                if (state.board[nr * state.width + nc] !== null) return true;
+              }
+            }
+          }
+          return false;
+        });
+        if (adjacent.length > 0 && Math.random() < 0.8) return adjacent[Math.floor(Math.random() * adjacent.length)];
+        return empty[Math.floor(Math.random() * empty.length)];
+      }
+
+      for (let i = 0; i < empty.length; i++) {
+        state.board[empty[i]] = state.aiPlayer;
+        if (customCheckWin(state.board, state.width, state.height, state.winLen, state.aiPlayer)) { state.board[empty[i]] = null; return empty[i]; }
+        state.board[empty[i]] = null;
+      }
+      for (let i = 0; i < empty.length; i++) {
+        state.board[empty[i]] = state.player;
+        if (customCheckWin(state.board, state.width, state.height, state.winLen, state.player)) { state.board[empty[i]] = null; return empty[i]; }
+        state.board[empty[i]] = null;
+      }
+
+      const adjacent = empty.filter(idx => {
+        const r = Math.floor(idx / state.width);
+        const c = idx % state.width;
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            const nr = r + dr, nc = c + dc;
+            if (nr >= 0 && nr < state.height && nc >= 0 && nc < state.width) {
+              if (state.board[nr * state.width + nc] !== null) return true;
+            }
+          }
+        }
+        return false;
+      });
+      
+      if (adjacent.length > 0) return adjacent[Math.floor(Math.random() * adjacent.length)];
+      return empty[Math.floor(Math.random() * empty.length)];
+    }
 
     function openFilePicker() {
       const fileInput = document.createElement('input');
@@ -244,9 +416,7 @@
             scrollToBottom();
           };
           reader.readAsText(file);
-        } else {
-          writeLine(`<Console> [Binary File Loaded. Displaying raw text is not supported for this type.]`);
-        }
+        } else writeLine(`<Console> [Binary File Loaded. Displaying raw text is not supported for this type.]`);
         scrollToBottom();
       };
       fileInput.click();
@@ -280,17 +450,14 @@
         if (url) {
           writeLine(`<Console> Launching ${distro.toUpperCase()}... (Please allow popups for this site)`);
           window.open(url, '_blank');
-          linuxUI.remove();
-          maintainFocus();
+          linuxUI.remove(); maintainFocus();
         }
       };
     }
 
     function toggleMatrix() {
       if (matrixInterval) {
-        clearInterval(matrixInterval);
-        matrixInterval = null;
-        matrixCanvas.style.display = 'none';
+        clearInterval(matrixInterval); matrixInterval = null; matrixCanvas.style.display = 'none';
         if (!container.classList.contains('rainbow-mode')) container.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
         return '<Console> Matrix mode disabled.';
       } else {
@@ -310,7 +477,6 @@
         matrixInterval = setInterval(() => {
           ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
           ctx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
-          
           const cbMode = container.dataset.cbMode;
           if (cbMode === 'deuteranopia' || cbMode === 'deuteranomaly') ctx.fillStyle = "#ffff00";
           else if (cbMode === 'protanopia' || cbMode === 'protanomaly') ctx.fillStyle = "#00ffff";
@@ -426,7 +592,6 @@
           doc.open(); doc.write(code); doc.close();
         } else if (lang === 'py') {
           outputScreen.style.background = '#000'; outputScreen.style.color = '#00ff66'; outputScreen.style.fontFamily = 'monospace'; outputScreen.style.padding = '10px'; outputScreen.style.whiteSpace = 'pre-wrap';
-          
           const doc = outputScreen.contentWindow.document;
           doc.open(); doc.write('<div style="padding: 10px; color: #00ff66; background: #000; font-family: monospace; height: 100%;">> Booting Python engine...\n</div>'); doc.close();
           input.disabled = true;
@@ -672,7 +837,7 @@
     
     container.addEventListener('click', (e) => {
       if (window.getSelection().toString().length > 0) return; 
-      if (!e.target.classList.contains('inline-picker') && !e.target.closest('.sandbox-editor') && e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON' && !e.target.closest('.emulator-wrapper')) maintainFocus();
+      if (!e.target.classList.contains('inline-picker') && !e.target.closest('.sandbox-editor') && e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && !e.target.closest('.emulator-wrapper')) maintainFocus();
     });
 
     input.addEventListener('keydown', async (e) => {
@@ -680,7 +845,15 @@
         e.preventDefault();
         let currentText = input.value.trim().toLowerCase();
         if (currentText === '') return;
-        const allCommands = ['help', 'test', 'zones', 'weather', 'define', 'calc', 'password', 'top', 'matrix', 'save', 'copy', 'whereami', 'share', 'credits', 'clear', 'history', 'restore', 'info', 'mode', 'ollama', 'terminal', 'linux', 'exit', 'sandbox', 'file', 'note', 'notes', 'wipe', 'picker', 'theme', 'rainbow', 'colorblind', 'ascii', 'flip', 'roll', 'echo', 'lines', 'chat', 'js?', 'py?', 'meme', 'play', 'ttt', 'end'];
+        const allCommands = [
+          'help', 'test', 'zones', 'weather', 'define', 'calc', 'password', 
+          'top', 'matrix', 'save', 'copy', 'whereami', 'share', 'credits', 
+          'clear', 'history', 'restore', 'info', 'mode', 'ollama', 'terminal', 
+          'linux', 'exit', 'sandbox', 'file', 'note', 'notes', 'wipe', 
+          'picker', 'theme', 'rainbow', 'colorblind', 'ascii', 'flip', 
+          'roll', 'echo', 'lines', 'chat', 'js?', 'py?', 'meme', 'play', 'ttt', 
+          'time', 'c?', 'cpp?', 'rust?', 'cs?', 'end'
+        ];
         const match = allCommands.find(cmd => cmd.startsWith(currentText));
         if (match) { input.value = match + ' '; autoResize(); }
         return;
@@ -818,6 +991,61 @@
           input.disabled = false; scrollToBottom(); maintainFocus(); return;
         }
 
+        // --- PISTON API LANGUAGE INTEGRATION ---
+        if (fullInput.toLowerCase().startsWith('rust?') || 
+            fullInput.toLowerCase().startsWith('c?') || 
+            fullInput.toLowerCase().startsWith('cpp?') || 
+            fullInput.toLowerCase().startsWith('cs?')) {
+          
+          const langMap = { 'rust?': 'rust', 'c?': 'c', 'cpp?': 'c++', 'cs?': 'csharp' };
+          const prefix = fullInput.substring(0, fullInput.indexOf('?') + 1).toLowerCase();
+          const langName = langMap[prefix];
+          const codeToRun = fullInput.substring(prefix.length).trim();
+
+          if (!codeToRun) {
+             writeLine(`<Console> Usage: ${prefix} [code]`);
+             resetInput(); maintainFocus(); return;
+          }
+
+          writeLine(`<Console> [Compiling ${langName.toUpperCase()}...]`);
+          resetInput(); input.disabled = true; scrollToBottom();
+
+          try {
+            const res = await fetch('https://emkc.org/api/v2/piston/execute', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                language: langName,
+                version: '*', 
+                files: [{ content: codeToRun }]
+              })
+            });
+
+            const data = await res.json();
+            
+            if (data.run) {
+              let outputStr = '';
+              if (data.compile && data.compile.output) outputStr += `[Compilation Output]:\n${data.compile.output}\n`;
+              if (data.run.stdout) outputStr += data.run.stdout;
+              if (data.run.stderr) outputStr += `\n[stderr]:\n${data.run.stderr}`;
+              if (!data.run.stdout && !data.run.stderr) outputStr += '(Program executed successfully with no output)';
+
+              const line = document.createElement('div');
+              line.style.whiteSpace = 'pre-wrap'; line.style.textAlign = 'left';
+              line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [${langName.toUpperCase()} Result]:</span><br>` + highlightCode(outputStr, 'text');
+              output.appendChild(line);
+            } else {
+              playError();
+              writeLine(`<Console> [${langName} Error]: Failed to compile or execute.`);
+            }
+          } catch (err) {
+            playError();
+            writeLine(`<Console> [Network Error]: Could not reach compilation server. ${err.message}`);
+          }
+          input.disabled = false; scrollToBottom(); maintainFocus(); return;
+        }
+        // --------------------------------------
+
         if (fullInput.startsWith('*') && fullInput.endsWith('*') && fullInput.length > 2) {
           let promptText = fullInput.substring(1, fullInput.length - 1).trim();
           writeLine('<Console> [Firing all cloud AIs in parallel...]');
@@ -872,23 +1100,31 @@
 
         let response = '';
         if (cmdLower === 'test') {
-          // ... (Keep test sequence exactly as is) ...
           if (testRunning) { writeLine('<Console> [Test already running]'); resetInput(); maintainFocus(); return; }
           testRunning = true; isTesting = true; resetInput();
           writeLine('<Console> [STARTING MEGA-TEST SEQUENCE...]');
+          
           const simulateType = async (text) => {
             if (privacyGateActive) { input.value = 'agree'; autoResize(); input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await new Promise(r => setTimeout(r, 300)); }
             input.value = text; input.dispatchEvent(new Event('input', { bubbles: true }));
             await new Promise(r => setTimeout(r, 50));
             input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+            
             await new Promise((resolve) => {
               const start = Date.now();
               const tick = () => { if (!commandBusy || Date.now() - start > 30000) return resolve(); setTimeout(tick, 100); };
               setTimeout(tick, 100);
             });
-            await new Promise(r => setTimeout(r, 400));
+            
+            if (text.includes('lines') || text.includes('weather') || text.includes('info') || text.includes('py?') || text.includes('rust?') || text.includes('c?')) {
+              await new Promise(r => setTimeout(r, 2500));
+            } else {
+              await new Promise(r => setTimeout(r, 400));
+            }
           };
+
           const tour = ["help", "zones", "weather London", "define cat", "calc x3+y3+z3=k", "password", "top", "matrix", "matrix", "copy test", "whereami", "credits", "clear", "history", "restore 1", "info", "mode single", "mode multi", "ollama on", "ollama off", "note test", "notes", "picker", "theme #ff0000 #000000", "theme #00ff66 #0d0d0d", "rainbow", "rainbow", "colorblind deuteranopia", "colorblind off", "ascii", "flip", "roll", "roll 80", "echo test", "lines", "js? const arr = [1,2,3,4,5]; const nested = arr.map(x => ({ v: x, sq: x * x })); const fn = (a, b) => a.reduce((acc, c) => acc + c, b); fn(nested.map(o => o.sq), 0); null", "py? import math; data = [{'v': x, 'sq': x * x} for x in range(1, 6)]; total = sum(d['sq'] for d in data); print(math.factorial(10), total); None", "js? 9223372036854775807 + 1", "py? 9223372036854775807 + 1", "js? 2n**128n - 1n", "py? 2**128 - 1", "time", "utc-12", "utc-11", "utc-10", "utc-09:30", "utc-09", "utc-08", "utc-07", "utc-06", "utc-05", "utc-04", "utc-03:30", "utc-03", "utc-02", "utc-01", "utc+00:00", "utc+01", "utc+02", "utc+03", "utc+03:30", "utc+04", "utc+04:30", "utc+05", "utc+05:30", "utc+05:45", "utc+06", "utc+06:30", "utc+07", "utc+08", "utc+08:45", "utc+09", "utc+09:30", "utc+10", "utc+10:30", "utc+11", "utc+12", "utc+12:45", "utc+13", "utc+13:45", "utc+14", "lines"];
+          
           for (let i = 0; i < tour.length; i++) {
             writeLine(`<Console> [Test Step ${i + 1}/${tour.length}]: Executing "${tour[i]}"`);
             await simulateType(tour[i]);
@@ -919,7 +1155,8 @@
                      ' - ollama on / ollama off (toggle local CPU AI fallback)\n' +
                      ' - chat (starts a persistent conversation with AI memory)\n' +
                      ' - terminal (spawns another terminal inside this one)\n' +
-                     ' - linux (opens the v86 Linux emulator in a new tab)\n' +
+                     ' - linux (boots a tiny Linux OS inside a canvas window)\n' +
+                     ' - exit (closes the Linux emulator window)\n' +
                      ' - sandbox (opens a visual JS/Python playground)\n' +
                      ' - file (opens a file picker to load text/code into the terminal)\n' +
                      ' - note [text] (saves a persistent text note)\n' +
@@ -941,13 +1178,75 @@
                      ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
                      ' - JS? [code] (run live JavaScript directly in browser)\n' +
                      ' - PY? [code] (run live Python via Pyodide)\n' +
+                     ' - RUST? [code] (compile & run Rust via Piston API)\n' +
+                     ' - C? [code] (compile & run C via Piston API)\n' +
+                     ' - CPP? [code] (compile & run C++ via Piston API)\n' +
+                     ' - CS? [code] (compile & run C# via Piston API)\n' +
                      ' - time (shows local time; "time UTC+5" or just "UTC+5" / "-5" for an offset)\n' +
                      ' - [offset] (shorthand for "time <offset>", e.g. "UTC+02:00" or "-5")\n\n' +
-                     'Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/';
+                     'Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/\n' +
+                     'Note 2: C, C++, Rust, and C# rely on the free Piston API. It might be slow or occasionally offline.';
         } else if (cmdLower === 'hack') {
           response = '<Console> Dude thats not how it works, you cant just type hack and its hacked.';
         } else if (cmdLower === 'ttt') {
-          // ... (Keep TTT logic exactly as is) ...
+          if (arg.toLowerCase().startsWith('ag')) {
+            const args = arg.split(' ').slice(1);
+            if (args.length === 0) response = '<Console> [Custom Game] Usage: ttt ag [width] [height] [win] [slip%] [x|o]\nExample: ttt ag 5 9 4 5 x';
+            else if (args.length < 5) response = '<Console> [Custom Game] Invalid arguments. Need 5: width, height, win length, slip %, and player (x/o).\nExample: ttt ag 5 9 4 5 x';
+            else {
+              const w = parseInt(args[0]), h = parseInt(args[1]), win = parseInt(args[2]), slip = parseFloat(args[3]) / 100, p = args[4].toLowerCase();
+              if (isNaN(w) || isNaN(h) || isNaN(win) || isNaN(slip) || (p !== 'x' && p !== 'o')) response = '<Console> [Custom Game] Invalid values. Make sure width/height/win are numbers, slip is a number, and player is x or o.';
+              else if (w < 2 || h < 2 || win < 2) response = '<Console> [Custom Game] Board size and win length must be at least 2.';
+              else if (win > w && win > h) response = '<Console> [Custom Game] Win length cannot be larger than both width and height.';
+              else {
+                customGameState = { width: w, height: h, winLen: win, slipChance: slip, player: p.toUpperCase(), aiPlayer: p === 'x' ? 'O' : 'X', board: Array(w * h).fill(null) };
+                let initMsg = `<Console> [Custom Game] Started! Board: ${w}x${h}, Win length: ${win}, AI Slip Chance: ${args[3]}%. You are ${customGameState.player}.\n` + customRenderBoard(customGameState);
+                if (customGameState.player === 'O') {
+                  const aiMove = customAI_Move(customGameState);
+                  customGameState.board[aiMove] = customGameState.aiPlayer;
+                  initMsg += `\n<Console> The AI went first in the center.\n` + customRenderBoard(customGameState);
+                }
+                initMsg += `\nTo play, type "ttt [number]" (e.g. ttt 1).`;
+                response = initMsg;
+              }
+            }
+          } else if (customGameState) {
+            let move = parseInt(arg);
+            if (move >= 1 && move <= customGameState.width * customGameState.height && customGameState.board[move - 1] === null) {
+              customGameState.board[move - 1] = customGameState.player;
+              if (customCheckWin(customGameState.board, customGameState.width, customGameState.height, customGameState.winLen, customGameState.player)) { response = '<Console> [Custom Game] You win!\n' + customRenderBoard(customGameState); customGameState = null; } 
+              else if (!customGameState.board.includes(null)) { response = '<Console> [Custom Game] It\'s a draw!\n' + customRenderBoard(customGameState); customGameState = null; } 
+              else {
+                const aiMove = customAI_Move(customGameState);
+                customGameState.board[aiMove] = customGameState.aiPlayer;
+                if (customCheckWin(customGameState.board, customGameState.width, customGameState.height, customGameState.winLen, customGameState.aiPlayer)) { response = '<Console> [Custom Game] The AI wins!\n' + customRenderBoard(customGameState); customGameState = null; } 
+                else if (!customGameState.board.includes(null)) { response = '<Console> [Custom Game] It\'s a draw!\n' + customRenderBoard(customGameState); customGameState = null; } 
+                else response = '<Console> [Custom Game] Your turn (' + customGameState.player + ').\n' + customRenderBoard(customGameState);
+              }
+            } else response = '<Console> [Custom Game] Invalid move. Pick an empty spot.\n' + customRenderBoard(customGameState);
+          } else if (tttState) {
+            let move = parseInt(arg);
+            if (move >= 1 && move <= 9 && tttState.board[move - 1] === null) {
+              tttState.board[move - 1] = 'X';
+              if (tttCheckWin(tttState.board, 'X')) { response = '<Console> [Tic-Tac-Toe] You win!\n' + tttRenderBoard(tttState.board); tttState = null; } 
+              else if (!tttState.board.includes(null)) { response = '<Console> [Tic-Tac-Toe] It\'s a draw!\n' + tttRenderBoard(tttState.board); tttState = null; } 
+              else {
+                const aiMove = tttAIMove(tttState.board, tttState.difficulty);
+                tttState.board[aiMove] = 'O';
+                if (tttCheckWin(tttState.board, 'O')) { response = '<Console> [Tic-Tac-Toe] The AI wins!\n' + tttRenderBoard(tttState.board); tttState = null; } 
+                else if (!tttState.board.includes(null)) { response = '<Console> [Tic-Tac-Toe] It\'s a draw!\n' + tttRenderBoard(tttState.board); tttState = null; } 
+                else response = '<Console> [Tic-Tac-Toe] Your turn (X). Type "ttt [1-9]"\n' + tttRenderBoard(tttState.board);
+              }
+            } else response = '<Console> [Tic-Tac-Toe] Invalid move. Pick an empty spot (1-9).\n' + tttRenderBoard(tttState.board);
+          } else {
+            const diff = arg.toLowerCase();
+            if (['noob', 'easy', 'medium', 'hard', 'insane', 'master'].includes(diff)) {
+              tttState = { board: Array(9).fill(null), difficulty: diff };
+              customGameState = null;
+              response = `<Console> [Tic-Tac-Toe] Game started on ${diff.toUpperCase()} mode. You are X.\n` + tttRenderBoard(tttState.board) + '\nType "ttt [1-9]" to make a move.';
+            } else if (diff === '') response = '<Console> [Tic-Tac-Toe] Pick a difficulty: "ttt noob", "ttt easy", "ttt medium", "ttt hard", "ttt insane", or "ttt master".\nOr start an adjustable game: "ttt ag [width] [height] [win] [slip%] [x|o]"';
+            else response = '<Console> [Tic-Tac-Toe] Invalid difficulty. Type "ttt" for options.';
+          }
         } else if (cmdLower === 'meme') {
           const keys = Object.keys(memeSounds);
           const randomMeme = keys[Math.floor(Math.random() * keys.length)];
@@ -959,11 +1258,8 @@
         } else if (cmdLower === 'copy') {
           if (!arg) response = '<Console> Usage: copy [text]';
           else {
-            navigator.clipboard.writeText(arg).then(() => {
-              writeLine('<Console> [Clipboard] Copied to system clipboard!');
-              scrollToBottom();
-            }).catch(err => { playError(); writeLine('<Console> [Clipboard Error] Could not copy. ' + err.message); scrollToBottom(); });
-            response = '';
+            navigator.clipboard.writeText(arg).catch(err => { playError(); writeLine('<Console> [Clipboard Error] Could not copy. ' + err.message); });
+            response = `<Console> [Clipboard] Copied "${arg}" to system clipboard!`;
           }
         } else if (cmdLower === 'whereami') {
           if (!navigator.geolocation) { playError(); response = '<Console> Geolocation is not supported by this browser.'; } 
@@ -989,6 +1285,10 @@
           response = toggleMatrix();
         } else if (cmdLower === 'top') {
           resetInput(); runTop(); return;
+        } else if (cmdLower === 'time') {
+          let offsetStr = arg || '';
+          if (offsetStr) response = `<Console> [Time]: ${parseOffsetTime(offsetStr)} (UTC${offsetStr})`;
+          else response = `<Console> [Time]: ${new Date().toLocaleTimeString('en-US')} (Local)`;
         } else if (cmdLower === 'calc') {
           if (!arg) response = '<Console> Usage: calc [math expression]';
           else {
@@ -1158,43 +1458,33 @@
             resetInput(); scrollToBottom(); maintainFocus(); return;
           } else { playError(); response = '<Console> Invalid session ID. Type "history" to view available session IDs.'; }
         } else if (cmdLower === 'picker') {
-          // COMPLETED PICKER LOGIC
           writeLine('<Console> Color Pickers Activated:');
           const pickerContainer = document.createElement('div');
           pickerContainer.className = 'picker-container';
           
           const textPicker = document.createElement('input');
-          textPicker.type = 'color';
-          textPicker.className = 'inline-picker';
-          textPicker.value = '#00ff66'; // Default green
+          textPicker.type = 'color'; textPicker.className = 'inline-picker'; textPicker.value = '#00ff66'; 
           
           const bgPicker = document.createElement('input');
-          bgPicker.type = 'color';
-          bgPicker.className = 'inline-picker';
-          bgPicker.value = '#000000'; // Default black
+          bgPicker.type = 'color'; bgPicker.className = 'inline-picker'; bgPicker.value = '#000000'; 
           
           textPicker.oninput = (e) => { container.style.color = e.target.value; };
           bgPicker.oninput = (e) => { container.style.backgroundColor = e.target.value; };
 
           pickerContainer.innerHTML = '<span>Text: </span>';
           pickerContainer.appendChild(textPicker);
-          pickerContainer.innerHTML += '<span>Background: </span>';
+          pickerContainer.innerHTML += ' <span style="margin-left:10px;">Background: </span>';
           pickerContainer.appendChild(bgPicker);
           
           output.appendChild(pickerContainer);
-          scrollToBottom();
-          resetInput();
-          maintainFocus();
-          return;
+          scrollToBottom(); resetInput(); maintainFocus(); return;
         } else if (cmdLower === 'theme') {
           const themeArgs = arg.split(' ');
           if (themeArgs.length >= 2) {
             container.style.color = themeArgs[0];
             container.style.backgroundColor = themeArgs[1];
             response = `<Console> Theme updated: Text ${themeArgs[0]}, Background ${themeArgs[1]}`;
-          } else {
-            response = '<Console> Usage: theme [text_color] [bg_color] (e.g., theme #ff0000 #000000)';
-          }
+          } else response = '<Console> Usage: theme [text_color] [bg_color] (e.g., theme #ff0000 #000000)';
         } else {
           response = `<Console> Unknown command: "${cmdLower}". Type "help" for a list of commands.`;
         }
@@ -1207,7 +1497,6 @@
       }
     });
 
-    // ... (Keep the rest of the IIFE closing tags) ...
     maintainFocus();
   }).toString() + ")();";
 
