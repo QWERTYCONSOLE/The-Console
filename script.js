@@ -1205,7 +1205,7 @@
                      ' - CPP? [code] (compile & run C++ via Cloudflare)\n' +
                      ' - CS? [code] (compile & run C# via Cloudflare)\n' +
                      ' - edit [lang] (opens a multiline code editor UI)\n' +
-                     ' - doom (boots DOOM 1993 in an iframe)\n' +
+                     ' - doom (opens DOOM 1993 in a new tab)\n' +
                      ' - time (shows local time; "time UTC+5" or just "UTC+5" / "-5" for an offset)\n' +
                      ' - [offset] (shorthand for "time <offset>", e.g. "UTC+02:00" or "-5")\n\n' +
                      'Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/\n';
@@ -1408,12 +1408,9 @@
           return;
         } else if (cmdLower === 'doom') {
           writeLine('<Console> [Booting DOOM (1993)...]');
-          const doomFrame = document.createElement('iframe');
-          doomFrame.src = 'https://silentspacemarine.com/'; 
-          doomFrame.style.cssText = 'width: 100%; height: 500px; border: 2px solid #00ff66; margin-top: 10px; border-radius: 4px;';
-          doomFrame.allow = 'autoplay; fullscreen; gamepad;';
-          output.appendChild(doomFrame);
-          response = '<Console> RIP AND TEAR. (Click inside the frame to play)';
+          writeLine('<Console> Note: Opening DOOM in a new tab to bypass iframe security.');
+          window.open('https://silentspacemarine.com/', '_blank');
+          response = '<Console> RIP AND TEAR. (Check your new tab!)';
           scrollToBottom();
         } else if (cmdLower === 'calc') {
           if (!arg) response = '<Console> Usage: calc [math expression]';
