@@ -32,10 +32,6 @@
       return;
     }
 
-    const JS_LINES = 2176; 
-    const WORKER_LINES = 299;
-    const CURRENT_LINE_COUNT = JS_LINES + WORKER_LINES;
-
     let container = document.createElement('div');
     container.id = 'retro-console-root';
     
@@ -95,7 +91,6 @@
     }
 
     const WORKER_URL = 'https://console-ai-js.qwerty12345-1o1.workers.dev';
-    const SECRET_WORKER_URL = 'https://pegs.qwerty12345-1o1.workers.dev'; 
     
     const SCRIPT_ORIGIN = (function () {
       try {
@@ -157,7 +152,6 @@
     let matrixInterval = null;
     let chatHistory = []; 
     let isChatMode = false;
-    let commandBusy = false;
     let testRunning = false;
     let isTesting = false;
     let tttState = null;
@@ -197,8 +191,15 @@
 
     function highlightCode(code, lang) {
       if (typeof code !== 'string') return String(code);
-      let escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       
+      // Use Prism if it's loaded and supports this language
+      if (window.Prism && Prism.languages[lang]) {
+        try {
+          return Prism.highlight(code, Prism.languages[lang], lang);
+        } catch (e) {}
+      }
+      
+      let escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       if (lang === 'js') {
         escaped = escaped.replace(/\b(let|const|var|function|return|if|else|for|while|class|new|import|export|from|try|catch|await|async|typeof|instanceof)\b/g, `<span style="color: ${codeColors.keyword}; font-weight: bold;">$1</span>`);
         escaped = escaped.replace(/(['"`])((?:\\.|(?!\1).)*)\1/g, `<span style="color: ${codeColors.string};">$1$2$1</span>`);
@@ -715,47 +716,25 @@
       const ua = navigator.userAgent;
       let browserName = "Unknown Browser";
       
-      if (ua.includes("Lynx")) {
-        browserName = "Lynx (Text-based)";
-      } else if (ua.includes("Tor Browser") || ua.includes("TorBrowser")) {
-        browserName = "Tor Browser";
-      } else if (ua.includes("DuckDuckGo")) {
-        browserName = "DuckDuckGo Browser";
-      } else if (ua.includes("SamsungBrowser")) {
-        browserName = "Samsung Internet";
-      } else if (ua.includes("Opera") || ua.includes("OPR")) {
-        browserName = "Opera";
-      } else if (ua.includes("YaBrowser")) {
-        browserName = "Yandex Browser";
-      } else if (ua.includes("Vivaldi")) {
-        browserName = "Vivaldi";
-      } else if (ua.includes("Edg/") || ua.includes("Edge")) {
-        browserName = "Microsoft Edge";
-      } else if (ua.includes("Brave")) {
-        browserName = "Brave";
-      } else if (ua.includes("UCBrowser") || ua.includes("UC Browser")) {
-        browserName = "UC Browser";
-      } else if (ua.includes("Maxthon")) {
-        browserName = "Maxthon";
-      } else if (ua.includes("QQBrowser")) {
-        browserName = "QQ Browser";
-      } else if (ua.includes("360SE") || ua.includes("360EE")) {
-        browserName = "360 Secure Browser";
-      } else if (ua.includes("Epiphany") || ua.includes("GNOME Web")) {
-        browserName = "Epiphany/GNOME Web";
-      } else if (ua.includes("Midori")) {
-        browserName = "Midori";
-      } else if (ua.includes("Firefox")) {
-        browserName = "Mozilla Firefox";
-      } else if (ua.includes("MSIE") || ua.includes("Trident/")) {
-        browserName = "Internet Explorer (Legacy)";
-      } else if (ua.includes("Chrome")) {
-        // Chrome must be checked after Edge/Opera/etc because they all spoof "Chrome"
-        browserName = "Google Chrome / Chromium";
-      } else if (ua.includes("Safari")) {
-        // Safari must be checked last because Chrome spoofs "Safari"
-        browserName = "Apple Safari";
-      }
+      if (ua.includes("Lynx")) browserName = "Lynx (Text-based)";
+      else if (ua.includes("Tor Browser") || ua.includes("TorBrowser")) browserName = "Tor Browser";
+      else if (ua.includes("DuckDuckGo")) browserName = "DuckDuckGo Browser";
+      else if (ua.includes("SamsungBrowser")) browserName = "Samsung Internet";
+      else if (ua.includes("Opera") || ua.includes("OPR")) browserName = "Opera";
+      else if (ua.includes("YaBrowser")) browserName = "Yandex Browser";
+      else if (ua.includes("Vivaldi")) browserName = "Vivaldi";
+      else if (ua.includes("Edg/") || ua.includes("Edge")) browserName = "Microsoft Edge";
+      else if (ua.includes("Brave")) browserName = "Brave";
+      else if (ua.includes("UCBrowser") || ua.includes("UC Browser")) browserName = "UC Browser";
+      else if (ua.includes("Maxthon")) browserName = "Maxthon";
+      else if (ua.includes("QQBrowser")) browserName = "QQ Browser";
+      else if (ua.includes("360SE") || ua.includes("360EE")) browserName = "360 Secure Browser";
+      else if (ua.includes("Epiphany") || ua.includes("GNOME Web")) browserName = "Epiphany/GNOME Web";
+      else if (ua.includes("Midori")) browserName = "Midori";
+      else if (ua.includes("Firefox")) browserName = "Mozilla Firefox";
+      else if (ua.includes("MSIE") || ua.includes("Trident/")) browserName = "Internet Explorer (Legacy)";
+      else if (ua.includes("Chrome")) browserName = "Google Chrome / Chromium";
+      else if (ua.includes("Safari")) browserName = "Apple Safari";
 
       writeLine(`OS (Platform): ${navigator.platform}`);
       writeLine(`Browser: ${browserName}`);
@@ -898,7 +877,7 @@
           'linux', 'exit', 'sandbox', 'file', 'note', 'notes', 'wipe', 'wipehistory', 'factoryreset',
           'picker', 'theme', 'rainbow', 'colorblind', 'ascii', 'flip', 
           'roll', 'echo', 'lines', 'chat', 'js?', 'py?', 'meme', 'play', 'ttt', 
-          'time', 'c?', 'cpp?', 'rust?', 'cs?', 'end'
+          'time', 'c?', 'cpp?', 'rust?', 'cs?', 'edit', 'doom', 'end'
         ];
         const match = allCommands.find(cmd => cmd.startsWith(currentText));
         if (match) { input.value = match + ' '; autoResize(); }
@@ -1008,7 +987,6 @@
           try {
             let evalResult = (0, eval)(jsCode);
             if (evalResult !== undefined) {
-              let displayResult = typeof evalResult === 'object' ? JSON.stringify(evalResult, null, 2) : String(evalResult);
               const line = document.createElement('div');
               line.style.whiteSpace = 'pre-wrap'; line.style.textAlign = 'left'; 
               line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [Result]:</span><br>` + highlightCode(String(evalResult), 'js');
@@ -1037,19 +1015,20 @@
           input.disabled = false; scrollToBottom(); maintainFocus(); return;
         }
 
-        // --- PISTON API LANGUAGE INTEGRATION ---
         if (fullInput.toLowerCase().startsWith('rust?') || 
             fullInput.toLowerCase().startsWith('c?') || 
             fullInput.toLowerCase().startsWith('cpp?') || 
-            fullInput.toLowerCase().startsWith('cs?')) {
+            fullInput.toLowerCase().startsWith('cs?') ||
+            fullInput.toLowerCase().startsWith('java?') ||
+            fullInput.toLowerCase().startsWith('go?')) {
           
-          const langMap = { 'rust?': 'rust', 'c?': 'c', 'cpp?': 'c++', 'cs?': 'csharp' };
+          const langMap = { 
+            'rust?': 'rust', 'c?': 'c', 'cpp?': 'cpp', 'cs?': 'cs',
+            'java?': 'java', 'go?': 'go' 
+          };
           const prefix = fullInput.substring(0, fullInput.indexOf('?') + 1).toLowerCase();
           const langName = langMap[prefix];
-          let codeToRun = fullInput.substring(prefix.length).trim();
-
-          // Un-escape the literal \n that the console types into the text area
-          codeToRun = codeToRun.replace(/\\n/g, '\n');
+          let codeToRun = fullInput.substring(prefix.length).trim().replace(/\\n/g, '\n');
 
           if (!codeToRun) {
              writeLine(`<Console> Usage: ${prefix} [code]`);
@@ -1060,42 +1039,32 @@
           resetInput(); input.disabled = true; scrollToBottom();
 
           try {
-            const res = await fetch('https://emkc.org/api/v2/piston/execute', {
+            const res = await fetch(`${WORKER_URL}/compile`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 language: langName,
-                version: '*', 
-                files: [{ content: codeToRun }]
+                code: codeToRun
               })
             });
 
             const data = await res.json();
             
-            if (data.run) {
-              let outputStr = '';
-              if (data.compile && data.compile.output) outputStr += `[Compilation Output]:\n${data.compile.output}\n`;
-              if (data.run.stdout) outputStr += data.run.stdout;
-              if (data.run.stderr) outputStr += `\n[stderr]:\n${data.run.stderr}`;
-              if (!data.run.stdout && !data.run.stderr) outputStr += '(Program executed successfully with no output)';
-
+            if (data.success) {
               const line = document.createElement('div');
               line.style.whiteSpace = 'pre-wrap'; line.style.textAlign = 'left';
-              line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [${langName.toUpperCase()} Result]:</span><br>` + highlightCode(outputStr, 'text');
+              line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [${langName.toUpperCase()} Result]:</span><br>` + highlightCode(data.output, langName);
               output.appendChild(line);
             } else {
-              // LOG THE ACTUAL ERROR FROM PISTON
               playError();
-              let errorMsg = data.message || (data.error ? data.error : JSON.stringify(data));
-              writeLine(`<Console> [${langName.toUpperCase()} Error]: ${errorMsg}`);
+              writeLine(`<Console> [${langName.toUpperCase()} Error]: ${data.error}`);
             }
           } catch (err) {
             playError();
-            writeLine(`<Console> [Network Error]: Could not reach compilation server. ${err.message}`);
+            writeLine(`<Console> [Network Error]: Could not reach your worker. ${err.message}`);
           }
           input.disabled = false; scrollToBottom(); maintainFocus(); return;
         }
-        // --------------------------------------
 
         if (fullInput.startsWith('*') && fullInput.endsWith('*') && fullInput.length > 2) {
           let promptText = fullInput.substring(1, fullInput.length - 1).trim();
@@ -1231,14 +1200,15 @@
                      ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
                      ' - JS? [code] (run live JavaScript directly in browser)\n' +
                      ' - PY? [code] (run live Python via Pyodide)\n' +
-                     ' - RUST? [code] (compile & run Rust via Piston API)\n' +
-                     ' - C? [code] (compile & run C via Piston API)\n' +
-                     ' - CPP? [code] (compile & run C++ via Piston API)\n' +
-                     ' - CS? [code] (compile & run C# via Piston API)\n' +
+                     ' - RUST? [code] (compile & run Rust via Cloudflare)\n' +
+                     ' - C? [code] (compile & run C via Cloudflare)\n' +
+                     ' - CPP? [code] (compile & run C++ via Cloudflare)\n' +
+                     ' - CS? [code] (compile & run C# via Cloudflare)\n' +
+                     ' - edit [lang] (opens a multiline code editor UI)\n' +
+                     ' - doom (boots DOOM 1993 in an iframe)\n' +
                      ' - time (shows local time; "time UTC+5" or just "UTC+5" / "-5" for an offset)\n' +
                      ' - [offset] (shorthand for "time <offset>", e.g. "UTC+02:00" or "-5")\n\n' +
-                     'Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/\n' +
-                     'Note 2: C, C++, Rust, and C# rely on the free Piston API. It might be slow or occasionally offline.';
+                     'Note: Get ollama because its a local fallback if all of my api keys fail, i got all of them for free so its likely :/\n';
         } else if (cmdLower === 'hack') {
           response = '<Console> Dude thats not how it works, you cant just type hack and its hacked.';
         } else if (cmdLower === 'ttt') {
@@ -1348,6 +1318,103 @@
           } else {
             response = `<Console> [Time]: ${new Date().toLocaleTimeString('en-US')} (Local)`;
           }
+        } else if (cmdLower === 'edit') {
+          resetInput();
+          const defaultLang = arg.toLowerCase() || 'c';
+          
+          const editorUI = document.createElement('div');
+          editorUI.style.cssText = 'border: 1px solid #00ff66; padding: 15px; margin-top: 10px; background: #050505; max-width: 700px; font-family: monospace; text-align: left; border-radius: 4px; box-shadow: 0 0 15px rgba(0,255,102,0.2);';
+          editorUI.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <span style="color: #00ff66; font-weight: bold;">💻 MULTILINE CODE EDITOR</span>
+              <select id="edit-lang" style="background: #0d0d0d; color: #00ff66; border: 1px solid #00ff66; padding: 4px; font-family: monospace; outline: none;">
+                <option value="c">C</option>
+                <option value="cpp">C++</option>
+                <option value="rust">Rust</option>
+                <option value="cs">C#</option>
+                <option value="java">Java</option>
+                <option value="go">Go</option>
+              </select>
+            </div>
+            <textarea id="edit-code" spellcheck="false" style="width: 100%; height: 200px; background: #111; color: #fff; border: 1px solid #333; font-family: monospace; font-size: 14px; padding: 10px; box-sizing: border-box; resize: vertical; outline: none; border-radius: 3px; margin-bottom: 10px; white-space: pre; overflow-wrap: normal; overflow-x: auto;"></textarea>
+            <div style="display: flex; gap: 10px;">
+              <button id="edit-run" style="background: #00ff66; color: #000; border: none; padding: 8px 20px; font-weight: bold; cursor: pointer; font-family: monospace; flex: 1;">▶ Compile & Run</button>
+              <button id="edit-close" style="background: transparent; color: #ff6b6b; border: 1px solid #ff6b6b; padding: 8px 20px; cursor: pointer; font-family: monospace;">✖ Close</button>
+            </div>
+            <pre id="edit-output" style="color: #aaa; margin-top: 10px; font-size: 12px; white-space: pre-wrap; display: none; border-top: 1px solid #333; padding-top: 10px;"></pre>
+          `;
+          output.appendChild(editorUI);
+          scrollToBottom();
+
+          const langSelect = document.getElementById('edit-lang');
+          const codeArea = document.getElementById('edit-code');
+          const outputArea = document.getElementById('edit-output');
+          
+          if (['c', 'cpp', 'rust', 'cs', 'java', 'go'].includes(defaultLang)) langSelect.value = defaultLang;
+
+          const boilerplate = {
+            'c': '#include <stdio.h>\n\nint main() {\n    printf("Hello from C!\\n");\n    return 0;\n}',
+            'cpp': '#include <iostream>\n\nint main() {\n    std::cout << "Hello from C++!" << std::endl;\n    return 0;\n}',
+            'rust': 'fn main() {\n    println!("Hello from Rust!");\n}',
+            'cs': 'using System;\n\nclass Program {\n    static void Main() {\n        Console.WriteLine("Hello from C#!");\n    }\n}',
+            'java': 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello from Java!");\n    }\n}',
+            'go': 'package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello from Go!")\n}'
+          };
+
+          codeArea.value = boilerplate[langSelect.value] || '';
+
+          langSelect.onchange = () => {
+            if (codeArea.value.trim() === '' || Object.values(boilerplate).includes(codeArea.value)) {
+              codeArea.value = boilerplate[langSelect.value] || '';
+            }
+          };
+
+          document.getElementById('edit-close').onclick = () => {
+            editorUI.remove();
+            maintainFocus();
+          };
+
+          document.getElementById('edit-run').onclick = async () => {
+            const lang = langSelect.value;
+            const code = codeArea.value;
+            
+            outputArea.style.display = 'block';
+            outputArea.textContent = `[Compiling ${lang.toUpperCase()}...]`;
+            outputArea.style.color = '#ffd93d';
+            
+            try {
+              const res = await fetch(`${WORKER_URL}/compile`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ language: lang, code: code })
+              });
+              const data = await res.json();
+              
+              if (data.success) {
+                outputArea.textContent = data.output;
+                outputArea.style.color = '#00ff66';
+              } else {
+                outputArea.textContent = `Error: ${data.error}`;
+                outputArea.style.color = '#ff6b6b';
+              }
+            } catch (err) {
+              outputArea.textContent = `Network Error: ${err.message}`;
+              outputArea.style.color = '#ff6b6b';
+            }
+            scrollToBottom();
+          };
+          
+          maintainFocus();
+          return;
+        } else if (cmdLower === 'doom') {
+          writeLine('<Console> [Booting DOOM (1993)...]');
+          const doomFrame = document.createElement('iframe');
+          doomFrame.src = 'https://silentspacemarine.com/'; 
+          doomFrame.style.cssText = 'width: 100%; height: 500px; border: 2px solid #00ff66; margin-top: 10px; border-radius: 4px;';
+          doomFrame.allow = 'autoplay; fullscreen; gamepad;';
+          output.appendChild(doomFrame);
+          response = '<Console> RIP AND TEAR. (Click inside the frame to play)';
+          scrollToBottom();
         } else if (cmdLower === 'calc') {
           if (!arg) response = '<Console> Usage: calc [math expression]';
           else {
