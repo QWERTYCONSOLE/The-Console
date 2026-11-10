@@ -711,8 +711,54 @@
       } else writeLine(`Battery: API not supported`);
 
       writeLine('\n--- [OS & BROWSER] ---');
+      
+      const ua = navigator.userAgent;
+      let browserName = "Unknown Browser";
+      
+      if (ua.includes("Lynx")) {
+        browserName = "Lynx (Text-based)";
+      } else if (ua.includes("Tor Browser") || ua.includes("TorBrowser")) {
+        browserName = "Tor Browser";
+      } else if (ua.includes("DuckDuckGo")) {
+        browserName = "DuckDuckGo Browser";
+      } else if (ua.includes("SamsungBrowser")) {
+        browserName = "Samsung Internet";
+      } else if (ua.includes("Opera") || ua.includes("OPR")) {
+        browserName = "Opera";
+      } else if (ua.includes("YaBrowser")) {
+        browserName = "Yandex Browser";
+      } else if (ua.includes("Vivaldi")) {
+        browserName = "Vivaldi";
+      } else if (ua.includes("Edg/") || ua.includes("Edge")) {
+        browserName = "Microsoft Edge";
+      } else if (ua.includes("Brave")) {
+        browserName = "Brave";
+      } else if (ua.includes("UCBrowser") || ua.includes("UC Browser")) {
+        browserName = "UC Browser";
+      } else if (ua.includes("Maxthon")) {
+        browserName = "Maxthon";
+      } else if (ua.includes("QQBrowser")) {
+        browserName = "QQ Browser";
+      } else if (ua.includes("360SE") || ua.includes("360EE")) {
+        browserName = "360 Secure Browser";
+      } else if (ua.includes("Epiphany") || ua.includes("GNOME Web")) {
+        browserName = "Epiphany/GNOME Web";
+      } else if (ua.includes("Midori")) {
+        browserName = "Midori";
+      } else if (ua.includes("Firefox")) {
+        browserName = "Mozilla Firefox";
+      } else if (ua.includes("MSIE") || ua.includes("Trident/")) {
+        browserName = "Internet Explorer (Legacy)";
+      } else if (ua.includes("Chrome")) {
+        // Chrome must be checked after Edge/Opera/etc because they all spoof "Chrome"
+        browserName = "Google Chrome / Chromium";
+      } else if (ua.includes("Safari")) {
+        // Safari must be checked last because Chrome spoofs "Safari"
+        browserName = "Apple Safari";
+      }
+
       writeLine(`OS (Platform): ${navigator.platform}`);
-      writeLine(`Browser: ${navigator.userAgent.includes('Brave') ? 'Brave' : 'Chromium/Other'}`);
+      writeLine(`Browser: ${browserName}`);
       writeLine(`User Agent: ${navigator.userAgent}`);
       writeLine(`Language: ${navigator.language}`);
       writeLine(`Cookie Enabled: ${navigator.cookieEnabled}`);
@@ -849,7 +895,7 @@
           'help', 'test', 'zones', 'weather', 'define', 'calc', 'password', 
           'top', 'matrix', 'save', 'copy', 'whereami', 'share', 'credits', 
           'clear', 'history', 'restore', 'info', 'mode', 'ollama', 'terminal', 
-          'linux', 'exit', 'sandbox', 'file', 'note', 'notes', 'wipe', 
+          'linux', 'exit', 'sandbox', 'file', 'note', 'notes', 'wipe', 'wipehistory', 'factoryreset',
           'picker', 'theme', 'rainbow', 'colorblind', 'ascii', 'flip', 
           'roll', 'echo', 'lines', 'chat', 'js?', 'py?', 'meme', 'play', 'ttt', 
           'time', 'c?', 'cpp?', 'rust?', 'cs?', 'end'
@@ -1123,7 +1169,7 @@
             }
           };
 
-          const tour = ["help", "zones", "weather London", "define cat", "calc x3+y3+z3=k", "password", "top", "matrix", "matrix", "copy test", "whereami", "credits", "clear", "history", "restore 1", "info", "mode single", "mode multi", "ollama on", "ollama off", "note test", "notes", "picker", "theme #ff0000 #000000", "theme #00ff66 #0d0d0d", "rainbow", "rainbow", "colorblind deuteranopia", "colorblind off", "ascii", "flip", "roll", "roll 80", "echo test", "lines", "js? const arr = [1,2,3,4,5]; const nested = arr.map(x => ({ v: x, sq: x * x })); const fn = (a, b) => a.reduce((acc, c) => acc + c, b); fn(nested.map(o => o.sq), 0); null", "py? import math; data = [{'v': x, 'sq': x * x} for x in range(1, 6)]; total = sum(d['sq'] for d in data); print(math.factorial(10), total); None", "js? 9223372036854775807 + 1", "py? 9223372036854775807 + 1", "js? 2n**128n - 1n", "py? 2**128 - 1", "time", "utc-12", "utc-11", "utc-10", "utc-09:30", "utc-09", "utc-08", "utc-07", "utc-06", "utc-05", "utc-04", "utc-03:30", "utc-03", "utc-02", "utc-01", "utc+00:00", "utc+01", "utc+02", "utc+03", "utc+03:30", "utc+04", "utc+04:30", "utc+05", "utc+05:30", "utc+05:45", "utc+06", "utc+06:30", "utc+07", "utc+08", "utc+08:45", "utc+09", "utc+09:30", "utc+10", "utc+10:30", "utc+11", "utc+12", "utc+12:45", "utc+13", "utc+13:45", "utc+14", "lines"];
+          const tour = ["help", "zones", "weather London", "define cat", "calc x3+y3+z3=k", "password", "top", "matrix", "matrix", "copy test", "whereami", "credits", "info", "mode single", "mode multi", "ollama on", "ollama off", "note test", "notes", "picker", "theme #ff0000 #000000", "theme #00ff66 #0d0d0d", "rainbow", "rainbow", "colorblind deuteranopia", "colorblind off", "ascii", "flip", "roll", "roll 80", "echo test", "lines", "js? const arr = [1,2,3,4,5]; const nested = arr.map(x => ({ v: x, sq: x * x })); const fn = (a, b) => a.reduce((acc, c) => acc + c, b); fn(nested.map(o => o.sq), 0); null", "py? import math; data = [{'v': x, 'sq': x * x} for x in range(1, 6)]; total = sum(d['sq'] for d in data); print(math.factorial(10), total); None", "js? 9223372036854775807 + 1", "py? 9223372036854775807 + 1", "js? 2n**128n - 1n", "py? 2**128 - 1", "time", "utc-12", "utc-11", "utc-10", "utc-09:30", "utc-09", "utc-08", "utc-07", "utc-06", "utc-05", "utc-04", "utc-03:30", "utc-03", "utc-02", "utc-01", "utc+00:00", "utc+01", "utc+02", "utc+03", "utc+03:30", "utc+04", "utc+04:30", "utc+05", "utc+05:30", "utc+05:45", "utc+06", "utc+06:30", "utc+07", "utc+08", "utc+08:45", "utc+09", "utc+09:30", "utc+10", "utc+10:30", "utc+11", "utc+12", "utc+12:45", "utc+13", "utc+13:45", "utc+14", "lines"];
           
           for (let i = 0; i < tour.length; i++) {
             writeLine(`<Console> [Test Step ${i + 1}/${tour.length}]: Executing "${tour[i]}"`);
@@ -1162,6 +1208,8 @@
                      ' - note [text] (saves a persistent text note)\n' +
                      ' - notes (lists all saved notes)\n' +
                      ' - wipe (deletes all saved notes)\n' +
+                     ' - wipehistory (deletes all saved sessions and command history)\n' +
+                     ' - factoryreset (wipes ALL local storage data for this site)\n' +
                      ' - picker (opens interactive text & background color pickers)\n' +
                      ' - theme [text_color] [bg_color] (changes console colors)\n' +
                      ' - rainbow (toggles full-screen rainbow mode)\n' +
@@ -1259,7 +1307,7 @@
           if (!arg) response = '<Console> Usage: copy [text]';
           else {
             navigator.clipboard.writeText(arg).catch(err => { playError(); writeLine('<Console> [Clipboard Error] Could not copy. ' + err.message); });
-            response = `<Console> [Clipboard] Copied "${arg}" to system clipboard!`;
+            response = '<Console> [Clipboard] Copied to system clipboard!';
           }
         } else if (cmdLower === 'whereami') {
           if (!navigator.geolocation) { playError(); response = '<Console> Geolocation is not supported by this browser.'; } 
@@ -1287,8 +1335,14 @@
           resetInput(); runTop(); return;
         } else if (cmdLower === 'time') {
           let offsetStr = arg || '';
-          if (offsetStr) response = `<Console> [Time]: ${parseOffsetTime(offsetStr)} (UTC${offsetStr})`;
-          else response = `<Console> [Time]: ${new Date().toLocaleTimeString('en-US')} (Local)`;
+          if (offsetStr) {
+            let displayOffset = offsetStr.toUpperCase().replace('UTC', '').trim();
+            if (!displayOffset.startsWith('+') && !displayOffset.startsWith('-')) displayOffset = '+' + displayOffset;
+            if (displayOffset === '+') displayOffset = '';
+            response = `<Console> [Time]: ${parseOffsetTime(offsetStr)} (UTC${displayOffset})`;
+          } else {
+            response = `<Console> [Time]: ${new Date().toLocaleTimeString('en-US')} (Local)`;
+          }
         } else if (cmdLower === 'calc') {
           if (!arg) response = '<Console> Usage: calc [math expression]';
           else {
@@ -1374,6 +1428,23 @@
         } else if (cmdLower === 'wipe') {
           try { localStorage.removeItem('retro_notes'); response = '<Console> All saved notes have been wiped.'; } 
           catch (e) { playError(); response = '<Console> [Error]: Could not wipe notes.'; }
+        } else if (cmdLower === 'wipehistory') {
+          try {
+            archivedSessions = [];
+            localStorage.removeItem('retro_console_history');
+            persistentHistory = [];
+            localStorage.removeItem(CMD_HISTORY_KEY);
+            sessionStartTime = null; commandLog = []; historyIndex = -1;
+            clearOutput('<Console> All session history and command history have been permanently wiped.');
+            resetInput(); maintainFocus(); return;
+          } catch (e) { playError(); response = '<Console> [Error]: Could not wipe history.'; }
+        } else if (cmdLower === 'factoryreset') {
+          try {
+            localStorage.clear();
+            writeLine('<Console> [FACTORY RESET] All local storage data cleared. Reloading...');
+            setTimeout(() => location.reload(), 1500);
+            return;
+          } catch (e) { playError(); response = '<Console> [Error]: Could not factory reset.'; }
         } else if (cmdLower === 'rainbow') {
           const isColorblind = ['protanopia', 'protanomaly', 'deuteranopia', 'deuteranomaly', 'tritanopia', 'tritanomaly'].includes(container.dataset.cbMode);
           if (isColorblind) { playError(); response = '<Console> [Accessibility]: Rainbow mode is not compatible with colorblind mode. Please type "colorblind off" first.'; } 
@@ -1458,6 +1529,10 @@
             resetInput(); scrollToBottom(); maintainFocus(); return;
           } else { playError(); response = '<Console> Invalid session ID. Type "history" to view available session IDs.'; }
         } else if (cmdLower === 'picker') {
+          container.classList.remove('rainbow-mode', 'rainbow-bg');
+          container.dataset.cbMode = 'none';
+          codeColors = { keyword: '#c678dd', string: '#98c379', number: '#d19a66', comment: '#5c6370', text: '#00ff66' };
+
           writeLine('<Console> Color Pickers Activated:');
           const pickerContainer = document.createElement('div');
           pickerContainer.className = 'picker-container';
@@ -1481,9 +1556,13 @@
         } else if (cmdLower === 'theme') {
           const themeArgs = arg.split(' ');
           if (themeArgs.length >= 2) {
+            container.classList.remove('rainbow-mode', 'rainbow-bg');
+            container.dataset.cbMode = 'none';
+            codeColors = { keyword: '#c678dd', string: '#98c379', number: '#d19a66', comment: '#5c6370', text: '#00ff66' };
+
             container.style.color = themeArgs[0];
             container.style.backgroundColor = themeArgs[1];
-            response = `<Console> Theme updated: Text ${themeArgs[0]}, Background ${themeArgs[1]}`;
+            response = `<Console> Theme updated: Text ${themeArgs[0]}, Background ${themeArgs[1]}\n(Accessibility modes have been reset to default).`;
           } else response = '<Console> Usage: theme [text_color] [bg_color] (e.g., theme #ff0000 #000000)';
         } else {
           response = `<Console> Unknown command: "${cmdLower}". Type "help" for a list of commands.`;
