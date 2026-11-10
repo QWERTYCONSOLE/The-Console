@@ -1046,7 +1046,10 @@
           const langMap = { 'rust?': 'rust', 'c?': 'c', 'cpp?': 'c++', 'cs?': 'csharp' };
           const prefix = fullInput.substring(0, fullInput.indexOf('?') + 1).toLowerCase();
           const langName = langMap[prefix];
-          const codeToRun = fullInput.substring(prefix.length).trim();
+          let codeToRun = fullInput.substring(prefix.length).trim();
+
+          // Un-escape the literal \n that the console types into the text area
+          codeToRun = codeToRun.replace(/\\n/g, '\n');
 
           if (!codeToRun) {
              writeLine(`<Console> Usage: ${prefix} [code]`);
@@ -1081,8 +1084,10 @@
               line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [${langName.toUpperCase()} Result]:</span><br>` + highlightCode(outputStr, 'text');
               output.appendChild(line);
             } else {
+              // LOG THE ACTUAL ERROR FROM PISTON
               playError();
-              writeLine(`<Console> [${langName} Error]: Failed to compile or execute.`);
+              let errorMsg = data.message || (data.error ? data.error : JSON.stringify(data));
+              writeLine(`<Console> [${langName.toUpperCase()} Error]: ${errorMsg}`);
             }
           } catch (err) {
             playError();
