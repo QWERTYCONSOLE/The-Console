@@ -127,7 +127,7 @@
       'building': new Audio(SCRIPT_ORIGIN + "/Don't be racist, I Am A Building.mp3")
     };
     
-    Object.values(memeSounds).forEach(sound => { sound.preload = 'auto'; sound.volume = 0.6; });
+    Object.values(memeSounds).forEach(sound => { sound.preload = 'none'; sound.volume = 0.6; });
 
     function playError() {
       if (audioUnlocked) { errorSound.currentTime = 0; errorSound.play().catch(e => {}); }
@@ -211,6 +211,10 @@
         escaped = escaped.replace(/(#.*)/g, `<span style="color: ${codeColors.comment}; font-style: italic;">$1</span>`);
       }
       return escaped;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     function formatAIResponse(provider, text) {
@@ -604,9 +608,9 @@
             py.setStderr({ batched: (s) => { pyOutput += '[stderr] ' + s + '\n'; } });
             let result = py.runPython(code);
             if (result !== undefined && result !== null) pyOutput += '=> ' + String(result) + '\n';
-            doc.body.innerHTML += '<pre style="margin:0; padding: 10px;">' + pyOutput + '</pre>';
+            doc.body.innerHTML += '<pre style="margin:0; padding: 10px;">' + escapeHtml(pyOutput) + '</pre>';
           } catch (err) {
-            doc.body.innerHTML += '<pre style="margin:0; padding: 10px; color: #ff6b6b;">[Python Error]: ' + err.message + '</pre>';
+            doc.body.innerHTML += '<pre style="margin:0; padding: 10px; color: #ff6b6b;">[Python Error]: ' + escapeHtml(err.message) + '</pre>';
           } finally {
             input.disabled = false; maintainFocus();
           }
@@ -764,29 +768,32 @@
       scrollToBottom();
     }
 
-    async function fetchAIResponse(promptText, isSequential = false) {
+    async function fetchAIResponse(promptText, isSequential = false, useHistory = true) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 25000); 
-        chatHistory.push({ role: 'user', content: promptText });
+        const msgs = useHistory ? chatHistory : [];
+        msgs.push({ role: 'user', content: promptText });
         const response = await fetch(WORKER_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
-          body: JSON.stringify({ prompt: promptText, history: chatHistory, isSequential: isSequential }) 
+          body: JSON.stringify({ prompt: promptText, history: msgs, isSequential: isSequential }) 
         });
         clearTimeout(timeoutId);
         const data = await response.json();
         
         if (response.ok && data.success) {
-          if (data.responses && data.responses.length > 0) chatHistory.push({ role: 'assistant', content: data.responses[0].text });
+          if (useHistory && data.responses && data.responses.length > 0) chatHistory.push({ role: 'assistant', content: data.responses[0].text });
           return { success: true, responses: data.responses, errors: data.errors, triggerMatrix: data.triggerMatrix };
         } else {
           playError();
+          if (useHistory) chatHistory.pop();
           return { success: false, error: data.error || "Unknown worker error" };
         }
       } catch (err) {
         playError();
+        if (useHistory) chatHistory.pop();
         return { success: false, error: "Connection error: Could not reach Cloudflare Worker." };
       }
     }
@@ -828,6 +835,19 @@
 
     function maintainFocus() { if (!input.disabled) input.focus(); }
     setTimeout(maintainFocus, 100);
+
+    function runWhereami() {
+      writeLine('<Console> [Requesting location... allow the browser prompt]');
+      scrollToBottom();
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          writeLine('<Console> [Location] Lat ' + pos.coords.latitude.toFixed(5) + ', Lon ' + pos.coords.longitude.toFixed(5) + ' (accuracy ~' + Math.round(pos.coords.accuracy) + ' m)');
+          scrollToBottom(); maintainFocus();
+        },
+        (err) => { playError(); writeLine('<Console> [Location Error]: ' + err.message); scrollToBottom(); maintainFocus(); },
+        { timeout: 15000 }
+      );
+    }
 
     function requirePrivacyConsent(subject, onAgree) {
       if (privacyGateActive) return;
@@ -877,7 +897,7 @@
           'linux', 'exit', 'sandbox', 'file', 'note', 'notes', 'wipe', 'wipehistory', 'factoryreset',
           'picker', 'theme', 'rainbow', 'colorblind', 'ascii', 'flip', 
           'roll', 'echo', 'lines', 'chat', 'js?', 'py?', 'meme', 'play', 'ttt', 
-          'time', 'c?', 'cpp?', 'rust?', 'cs?', 'edit', 'doom', 'end'
+          'time', 'c?', 'cpp?', 'rust?', 'cs?', 'java?', 'go?', 'edit', 'doom', 'end'
         ];
         const match = allCommands.find(cmd => cmd.startsWith(currentText));
         if (match) { input.value = match + ' '; autoResize(); }
@@ -989,7 +1009,7 @@
             if (evalResult !== undefined) {
               const line = document.createElement('div');
               line.style.whiteSpace = 'pre-wrap'; line.style.textAlign = 'left'; 
-              line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [Result]:</span><br>` + highlightCode(String(evalResult), 'js');
+              line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [Result]:</span><br>` + escapeHtml(String(evalResult));
               output.appendChild(line);
             } else writeLine('<Console> [Result]: Executed successfully (no return value)');
           } catch (err) { playError(); writeLine('<Console> [JS Error]: ' + err.message); }
@@ -1009,7 +1029,7 @@
             if (result !== undefined && result !== null) pyOutput += String(result);
             const line = document.createElement('div');
             line.style.whiteSpace = 'pre-wrap'; line.style.textAlign = 'left'; 
-            line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [Result]:</span><br>` + highlightCode(pyOutput, 'py');
+            line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [Result]:</span><br>` + escapeHtml(pyOutput);
             output.appendChild(line);
           } catch (err) { playError(); writeLine('<Console> [Python Error]: ' + err.message); }
           input.disabled = false; scrollToBottom(); maintainFocus(); return;
@@ -1053,7 +1073,7 @@
             if (data.success) {
               const line = document.createElement('div');
               line.style.whiteSpace = 'pre-wrap'; line.style.textAlign = 'left';
-              line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [${langName.toUpperCase()} Result]:</span><br>` + highlightCode(data.output, langName);
+              line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [${langName.toUpperCase()} Result]:</span><br>` + escapeHtml(data.output);
               output.appendChild(line);
             } else {
               playError();
@@ -1070,7 +1090,7 @@
           let promptText = fullInput.substring(1, fullInput.length - 1).trim();
           writeLine('<Console> [Firing all cloud AIs in parallel...]');
           resetInput(); input.disabled = true; scrollToBottom();
-          let cloudResult = await fetchAIResponse(promptText, false);
+          let cloudResult = await fetchAIResponse(promptText, false, false);
           
           if (cloudResult.success && cloudResult.responses && cloudResult.responses.length > 0) {
             if (currentMode === 'single') {
@@ -1132,7 +1152,7 @@
             
             await new Promise((resolve) => {
               const start = Date.now();
-              const tick = () => { if (!commandBusy || Date.now() - start > 30000) return resolve(); setTimeout(tick, 100); };
+              const tick = () => { if (!input.disabled || Date.now() - start > 30000) return resolve(); setTimeout(tick, 100); };
               setTimeout(tick, 100);
             });
             
@@ -1174,10 +1194,9 @@
                      ' - mode single / mode multi (toggle AI response behavior)\n' +
                      ' - ollama on / ollama off (toggle local CPU AI fallback)\n' +
                      ' - chat (starts a persistent conversation with AI memory)\n' +
-                     ' - terminal (spawns another terminal inside this one)\n' +
-                     ' - linux (boots a tiny Linux OS inside a canvas window)\n' +
-                     ' - exit (closes the Linux emulator window)\n' +
-                     ' - sandbox (opens a visual JS/Python playground)\n' +
+                     ' - terminal (currently a no-op: the console is already open)\n' +
+                     ' - linux (opens a Linux emulator in a new tab)\n' +
+                                          ' - sandbox (opens a visual JS/Python playground)\n' +
                      ' - file (opens a file picker to load text/code into the terminal)\n' +
                      ' - note [text] (saves a persistent text note)\n' +
                      ' - notes (lists all saved notes)\n' +
@@ -1204,6 +1223,8 @@
                      ' - C? [code] (compile & run C via Cloudflare)\n' +
                      ' - CPP? [code] (compile & run C++ via Cloudflare)\n' +
                      ' - CS? [code] (compile & run C# via Cloudflare)\n' +
+                     ' - JAVA? [code] (compile & run Java via Cloudflare)\n' +
+                     ' - GO? [code] (compile & run Go via Cloudflare)\n' +
                      ' - edit [lang] (opens a multiline code editor UI)\n' +
                      ' - doom (opens DOOM 1993 in a new tab)\n' +
                      ' - time (shows local time; "time UTC+5" or just "UTC+5" / "-5" for an offset)\n' +
@@ -1220,6 +1241,8 @@
               const w = parseInt(args[0]), h = parseInt(args[1]), win = parseInt(args[2]), slip = parseFloat(args[3]) / 100, p = args[4].toLowerCase();
               if (isNaN(w) || isNaN(h) || isNaN(win) || isNaN(slip) || (p !== 'x' && p !== 'o')) response = '<Console> [Custom Game] Invalid values. Make sure width/height/win are numbers, slip is a number, and player is x or o.';
               else if (w < 2 || h < 2 || win < 2) response = '<Console> [Custom Game] Board size and win length must be at least 2.';
+              else if (w > 20 || h > 20) response = '<Console> [Custom Game] Max board size is 20x20.';
+              else if (slip < 0 || slip > 1) response = '<Console> [Custom Game] Slip % must be between 0 and 100.';
               else if (win > w && win > h) response = '<Console> [Custom Game] Win length cannot be larger than both width and height.';
               else {
                 customGameState = { width: w, height: h, winLen: win, slipChance: slip, player: p.toUpperCase(), aiPlayer: p === 'x' ? 'O' : 'X', board: Array(w * h).fill(null) };
@@ -1287,9 +1310,9 @@
         } else if (cmdLower === 'whereami') {
           if (!navigator.geolocation) { playError(); response = '<Console> Geolocation is not supported by this browser.'; } 
           else {
-            if (isTesting) { input.value = 'whereami'; autoResize(); input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); } 
+            if (isTesting) { writeLine('<Console> [whereami skipped during test tour]'); resetInput(); } 
             else {
-              requirePrivacyConsent('whereami', () => { input.value = 'whereami'; autoResize(); input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+              resetInput(); requirePrivacyConsent('whereami', runWhereami);
             }
             return;
           }
@@ -1422,12 +1445,22 @@
             } catch (e) { playError(); response = '<Console> [Calc Error]: Invalid math expression.'; }
           }
         } else if (cmdLower === 'password') {
-          const len = parseInt(arg) || 16;
-          if (len > 128) { playError(); response = '<Console> Max password length is 128.'; } 
+          let len = parseInt(arg);
+          if (isNaN(len)) len = 16;
+          if (len < 1) len = 16;
+          if (len > 128) { playError(); response = '<Console> Max password length is 128.'; }
           else {
             const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
             let pass = "";
-            for (let i = 0; i < len; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+            // Rejection sampling over crypto.getRandomValues so every char is equally likely (no modulo bias)
+            const limit = 256 - (256 % chars.length);
+            const buf = new Uint8Array(len * 2);
+            while (pass.length < len) {
+              crypto.getRandomValues(buf);
+              for (let i = 0; i < buf.length && pass.length < len; i++) {
+                if (buf[i] < limit) pass += chars.charAt(buf[i] % chars.length);
+              }
+            }
             response = `<Console> [Password]: ${pass}`;
           }
         } else if (cmdLower === 'weather') {
@@ -1462,10 +1495,10 @@
         } else if (cmdLower === 'file') {
           openFilePicker(); resetInput(); return;
         } else if (cmdLower === 'info') {
-          resetInput(); input.disabled = true;
+          resetInput();
           try {
-            if (isTesting) { await runInfo(); input.disabled = false; maintainFocus(); } 
-            else { requirePrivacyConsent('info', async () => { await runInfo(); input.disabled = false; maintainFocus(); }); }
+            if (isTesting) { input.disabled = true; try { await runInfo(); } finally { input.disabled = false; maintainFocus(); } } 
+            else { requirePrivacyConsent('info', async () => { input.disabled = true; try { await runInfo(); } finally { input.disabled = false; maintainFocus(); } }); }
           } catch (e) { input.disabled = false; maintainFocus(); }
           return;
         } else if (cmdLower === 'linux') {
@@ -1615,9 +1648,11 @@
           textPicker.oninput = (e) => { container.style.color = e.target.value; };
           bgPicker.oninput = (e) => { container.style.backgroundColor = e.target.value; };
 
-          pickerContainer.innerHTML = '<span>Text: </span>';
+          const textLabel = document.createElement('span'); textLabel.textContent = 'Text: ';
+          const bgLabel = document.createElement('span'); bgLabel.style.marginLeft = '10px'; bgLabel.textContent = ' Background: ';
+          pickerContainer.appendChild(textLabel);
           pickerContainer.appendChild(textPicker);
-          pickerContainer.innerHTML += ' <span style="margin-left:10px;">Background: </span>';
+          pickerContainer.appendChild(bgLabel);
           pickerContainer.appendChild(bgPicker);
           
           output.appendChild(pickerContainer);
