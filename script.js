@@ -500,54 +500,182 @@
       }
     }
 
+    const AGENT_URL = 'http://127.0.0.1:8765';
+
     async function runTop() {
       writeLine('<Console> [Starting System Monitor...]');
+      const fmtBytes = (n) => {
+        if (!isFinite(n)) return '?';
+        const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0;
+        while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+        return (i === 0 || n >= 100 ? Math.round(n) : n.toFixed(1)) + ' ' + u[i];
+      };
+      const fmtUptime = (s) => {
+        s = Math.floor(s); const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+        return (d ? d + 'd ' : '') + h + 'h ' + m + 'm';
+      };
+
       const topUI = document.createElement('div');
-      topUI.style.cssText = 'border: 1px solid #00ff66; padding: 15px; margin-top: 10px; background: #050505; max-width: 500px; font-family: monospace; text-align: left;';
-      topUI.innerHTML = `
-        <div style="margin-bottom: 15px;"><strong>CPU Usage</strong> <br><div class="bar-bg"><div id="cpu-bar" class="bar-fill"></div></div><span id="cpu-text">0%</span></div>
-        <div style="margin-bottom: 15px;"><strong>Memory Usage</strong> <br><div class="bar-bg"><div id="mem-bar" class="bar-fill"></div></div><span id="mem-text">0 MB</span></div>
-        <div style="margin-bottom: 15px;"><strong>Battery</strong> <br><div class="bar-bg"><div id="bat-bar" class="bar-fill" style="background:#ffd93d;"></div></div><span id="bat-text">Unknown</span></div>
-        <button id="stop-top-btn" style="background: transparent; color: #ff6b6b; border: 1px solid #ff6b6b; padding: 5px 10px; cursor: pointer; margin-top: 10px;">✖ Stop Monitoring</button>
-      `;
+      topUI.style.cssText = 'border: 1px solid #00ff66; padding: 15px; margin-top: 10px; background: #050505; max-width: 560px; font-family: monospace; text-align: left;';
+      const sourceEl = document.createElement('div');
+      sourceEl.style.cssText = 'color: #aaa; font-size: 12px; margin-bottom: 12px;';
+      const rowsEl = document.createElement('div');
+      const infoEl = document.createElement('pre');
+      infoEl.style.cssText = 'margin: 5px 0 0; white-space: pre-wrap; color: #aaa; font-size: 12px;';
+      const stopBtn = document.createElement('button');
+      stopBtn.textContent = '✖ Stop Monitoring';
+      stopBtn.style.cssText = 'background: transparent; color: #ff6b6b; border: 1px solid #ff6b6b; padding: 5px 10px; cursor: pointer; margin-top: 10px; font-family: monospace;';
+      topUI.append(sourceEl, rowsEl, infoEl, stopBtn);
       output.appendChild(topUI);
       scrollToBottom();
 
-      const cpuBar = document.getElementById('cpu-bar'), cpuText = document.getElementById('cpu-text');
-      const memBar = document.getElementById('mem-bar'), memText = document.getElementById('mem-text');
-      const batBar = document.getElementById('bat-bar'), batText = document.getElementById('bat-text');
-      const stopBtn = document.getElementById('stop-top-btn');
-
-      let lastTime = performance.now(), frames = 0;
-      const cpuInterval = setInterval(() => {
-        frames++;
-        const now = performance.now();
-        if (now - lastTime >= 1000) {
-          const cpu = Math.min(100, Math.round((frames / ((now - lastTime) / 1000)) * 10)); 
-          cpuBar.style.width = cpu + '%'; cpuText.textContent = cpu + '%';
-          frames = 0; lastTime = now;
+      // ---- meter rows (built with DOM calls only, so nothing gets re-parsed) ----
+      let rowMap = {};
+      function setRow(key, label, pct, text, color) {
+        let r = rowMap[key];
+        if (!r) {
+          const el = document.createElement('div'); el.style.marginBottom = '12px';
+          const lab = document.createElement('strong'); lab.textContent = label;
+          const bg = document.createElement('div'); bg.className = 'bar-bg';
+          const fill = document.createElement('div'); fill.className = 'bar-fill'; if (color) fill.style.background = color;
+          bg.appendChild(fill);
+          const t = document.createElement('span');
+          el.append(lab, document.createElement('br'), bg, t);
+          rowsEl.appendChild(el);
+          r = rowMap[key] = { el, fill, t };
         }
-        if (performance.memory) {
-          const used = Math.round(performance.memory.usedJSHeapSize / (1024 * 1024));
-          const total = Math.round(performance.memory.jsHeapSizeLimit / (1024 * 1024));
-          const percent = Math.round((used / total) * 100);
-          memBar.style.width = percent + '%'; memText.textContent = `${used} MB / ${total} MB (${percent}%)`;
-        } else memText.textContent = "Not supported in this browser";
-      }, 1000);
-
-      if (navigator.getBattery) {
-        navigator.getBattery().then(battery => {
-          const updateBat = () => {
-            const level = Math.round(battery.level * 100);
-            batBar.style.width = level + '%'; batText.textContent = `${level}% ${battery.charging ? '(Charging)' : ''}`;
-          };
-          updateBat();
-          battery.addEventListener('levelchange', updateBat);
-          battery.addEventListener('chargingchange', updateBat);
-        });
+        r.fill.style.width = Math.max(0, Math.min(100, pct || 0)) + '%';
+        r.t.textContent = text;
+        return r;
+      }
+      function setCores(r, cores) {
+        if (!r.coresEl) {
+          r.coresEl = document.createElement('div');
+          r.coresEl.style.cssText = 'display: flex; gap: 2px; margin-top: 4px;';
+          r.el.appendChild(r.coresEl);
+        }
+        while (r.coresEl.children.length < cores.length) {
+          const b = document.createElement('div'); b.style.cssText = 'flex: 1; height: 24px; background: #111; position: relative;';
+          const f = document.createElement('div'); f.style.cssText = 'position: absolute; bottom: 0; left: 0; right: 0; background: #00ff66;';
+          b.appendChild(f); r.coresEl.appendChild(b);
+        }
+        cores.forEach((p, i) => { r.coresEl.children[i].firstChild.style.height = p + '%'; });
       }
 
-      stopBtn.onclick = () => { clearInterval(cpuInterval); topUI.remove(); writeLine('<Console> [System Monitor Stopped]'); maintainFocus(); };
+      // ---- browser-side sensors ----
+      let lagSum = 0, frames = 0, rafId = 0;
+      let lastBeat = performance.now(), windowStart = lastBeat;
+      // Main-thread load: how late a 50ms timer fires. Blocked thread = late timer.
+      const beat = setInterval(() => {
+        const n = performance.now();
+        if (!document.hidden) lagSum += Math.max(0, n - lastBeat - 50);
+        lastBeat = n;
+      }, 50);
+      const raf = () => { frames++; rafId = requestAnimationFrame(raf); };
+      rafId = requestAnimationFrame(raf);
+
+      let pressureState = null, pressureObs = null, pressureSupported = false;
+      try {
+        if ('PressureObserver' in window && (PressureObserver.knownSources || []).includes('cpu')) {
+          pressureObs = new PressureObserver((recs) => { pressureState = recs[recs.length - 1].state; });
+          await pressureObs.observe('cpu', { sampleInterval: 1000 });
+          pressureSupported = true;
+        }
+      } catch (e) { pressureObs = null; pressureSupported = false; }
+
+      let battery = null;
+      if (navigator.getBattery) navigator.getBattery().then(b => { battery = b; }).catch(() => {});
+
+      // ---- optional local agent (real system stats) ----
+      let agentWait = 0; // ticks until we probe for the agent again
+      async function probeAgent() {
+        const c = new AbortController(); const id = setTimeout(() => c.abort(), 900);
+        try {
+          const r = await fetch(AGENT_URL + '/stats', { signal: c.signal, cache: 'no-store' });
+          return r.ok ? await r.json() : null;
+        } catch (e) { return null; } finally { clearTimeout(id); }
+      }
+
+      let lastMode = null, stopped = false;
+      function stop(manual) {
+        if (stopped) return; stopped = true;
+        clearInterval(beat); clearInterval(tickId); cancelAnimationFrame(rafId);
+        try { if (pressureObs) pressureObs.disconnect(); } catch (e) {}
+        if (topUI.isConnected) topUI.remove();
+        if (manual) { writeLine('<Console> [System Monitor Stopped]'); maintainFocus(); }
+      }
+      stopBtn.onclick = () => stop(true);
+
+      const tick = async () => {
+        if (stopped) return;
+        if (!topUI.isConnected) return stop(false); // e.g. the terminal was cleared
+        const now = performance.now();
+        const elapsed = Math.max(1, now - windowStart); windowStart = now;
+        const hidden = document.hidden;
+        const pageBusy = Math.min(100, Math.round(lagSum / elapsed * 100));
+        const fps = Math.round(frames / (elapsed / 1000));
+        lagSum = 0; frames = 0;
+
+        let agent = null;
+        if (agentWait <= 0) { agent = await probeAgent(); if (!agent) agentWait = 10; } else agentWait--;
+        if (agent) agentWait = 0; // keep polling every tick while it is up
+        if (stopped) return;
+
+        const mode = agent ? 'agent' : 'browser';
+        if (mode !== lastMode) { rowsEl.textContent = ''; rowMap = {}; lastMode = mode; }
+        sourceEl.textContent = agent
+          ? 'Source: local console-agent (real system stats) + browser sensors'
+          : 'Source: browser only (estimates). For real Task Manager numbers, run console-agent.js on your PC.';
+
+        const info = [];
+        if (agent) {
+          const c = agent.cpu, m = agent.mem;
+          const rc = setRow('cpu', 'CPU', c.percent, c.percent + '%  ' + c.count + ' threads  ' + c.model);
+          setCores(rc, c.cores);
+          setRow('mem', 'Memory', Math.round(m.used / m.total * 100), fmtBytes(m.used) + ' / ' + fmtBytes(m.total) + ' (' + Math.round(m.used / m.total * 100) + '%)');
+          (agent.disks || []).forEach(d => {
+            const pct = Math.round(d.used / d.total * 100);
+            setRow('disk:' + d.mount, 'Disk ' + d.mount, pct, fmtBytes(d.used) + ' / ' + fmtBytes(d.total) + ' used (' + pct + '%)', '#4da6ff');
+          });
+          info.push('System uptime: ' + fmtUptime(agent.uptime) + '  (' + agent.platform + ')');
+        } else {
+          if (pressureSupported) {
+            const map = { nominal: 20, fair: 50, serious: 80, critical: 100 };
+            setRow('cpu', 'System CPU pressure', map[pressureState] || 0, pressureState ? pressureState.toUpperCase() + '  (coarse: nominal / fair / serious / critical)' : 'waiting for first sample...');
+          } else {
+            setRow('cpu', 'System CPU', 0, 'Unavailable in this browser. Run console-agent.js for real CPU %.');
+          }
+          info.push('CPU threads: ' + (navigator.hardwareConcurrency || '?') + (navigator.deviceMemory ? '   RAM (approx, capped by browser): ' + navigator.deviceMemory + ' GB' : ''));
+        }
+
+        // Browser section (always shown)
+        setRow('tab', 'This tab: main-thread load', hidden ? 0 : pageBusy, hidden ? 'paused (tab hidden)' : pageBusy + '%', '#ffd93d');
+        setRow('fps', 'Frame rate', hidden ? 0 : Math.min(100, fps / 60 * 100), hidden ? 'paused (tab hidden)' : fps + ' FPS');
+        if (performance.memory) {
+          const used = performance.memory.usedJSHeapSize, lim = performance.memory.jsHeapSizeLimit;
+          setRow('heap', 'This tab: JS memory', Math.round(used / lim * 100), fmtBytes(used) + ' / ' + fmtBytes(lim) + ' limit');
+        }
+        try {
+          if (navigator.storage && navigator.storage.estimate) {
+            const est = await navigator.storage.estimate();
+            let ls = 0;
+            try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); ls += (k.length + (localStorage.getItem(k) || '').length) * 2; } } catch (e) {}
+            const pct = est.quota ? est.usage / est.quota * 100 : 0;
+            setRow('storage', 'This site: browser storage', pct, fmtBytes(est.usage || 0) + ' of ' + fmtBytes(est.quota || 0) + ' quota (' + pct.toFixed(2) + '%)  localStorage: ' + fmtBytes(ls), '#4da6ff');
+          }
+        } catch (e) {}
+        if (battery) {
+          const lv = Math.round(battery.level * 100);
+          setRow('bat', 'Battery', lv, lv + '%' + (battery.charging ? ' (Charging)' : ''), '#ffd93d');
+        }
+
+        const conn = navigator.connection;
+        info.push('Network: ' + (navigator.onLine ? 'online' : 'OFFLINE') + (conn ? '  ' + (conn.effectiveType || '?') + ', ~' + (conn.downlink != null ? conn.downlink : '?') + ' Mbps, RTT ' + (conn.rtt != null ? conn.rtt : '?') + ' ms' + (conn.saveData ? ', data saver on' : '') : ''));
+        info.push('Console session: ' + fmtUptime(performance.now() / 1000));
+        infoEl.textContent = info.join('\n');
+      };
+      const tickId = setInterval(tick, 1000);
+      tick();
     }
 
     function openSandbox() {
@@ -762,6 +890,8 @@
           writeLine(`Worker State: ${data.online ? 'online' : 'unknown'} (HTTP ${res.status})`);
           writeLine(`OpenAI Key: ${data.providers.openai}`);
           writeLine(`OpenRouter Key: ${data.providers.openrouter}`);
+          if (data.providers.groq) writeLine(`Groq Key: ${data.providers.groq}`);
+          if (data.providers.gemini) writeLine(`Gemini Key: ${data.providers.gemini}`);
         } else { playError(); writeLine(`Worker Error: HTTP ${res.status}`); }
       } catch (err) { playError(); writeLine(`Worker Error: Could not reach ${WORKER_URL}`); }
       writeLine('\n<Console> [Info Complete]');
@@ -1180,7 +1310,7 @@
                      ' - define [word] (looks up the definition of a word)\n' +
                      ' - calc [math] (e.g. "calc 5 * 5")\n' +
                      ' - password [length] (generates a secure random password)\n' +
-                     ' - top (opens live system monitor)\n' +
+                     ' - top (live monitor: CPU, memory, disk, FPS, network, battery. Run console-agent.js for real system numbers)\n' +
                      ' - matrix (toggles falling code background)\n' +
                      ' - save (downloads terminal history to a text file)\n' +
                      ' - copy [text] (copies text to clipboard - SITE EXCLUSIVE)\n' +
