@@ -474,8 +474,8 @@
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        const chars = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?";
-        const fontSize = 16;
+        const chars = " !\"#$%?&'()*+,-./01234567890:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";   
+        const fontsize = 16;   
         const columns = matrixCanvas.width / fontSize;
         const drops = Array(Math.floor(columns)).fill(1);
 
@@ -529,7 +529,6 @@
       output.appendChild(topUI);
       scrollToBottom();
 
-      // ---- meter rows (built with DOM calls only, so nothing gets re-parsed) ----
       let rowMap = {};
       function setRow(key, label, pct, text, color) {
         let r = rowMap[key];
@@ -562,10 +561,9 @@
         cores.forEach((p, i) => { r.coresEl.children[i].firstChild.style.height = p + '%'; });
       }
 
-      // ---- browser-side sensors ----
       let lagSum = 0, frames = 0, rafId = 0;
       let lastBeat = performance.now(), windowStart = lastBeat;
-      // Main-thread load: how late a 50ms timer fires. Blocked thread = late timer.
+
       const beat = setInterval(() => {
         const n = performance.now();
         if (!document.hidden) lagSum += Math.max(0, n - lastBeat - 50);
@@ -1326,7 +1324,7 @@
                      ' - chat (starts a persistent conversation with AI memory)\n' +
                      ' - terminal (currently a no-op: the console is already open)\n' +
                      ' - linux (opens a Linux emulator in a new tab)\n' +
-                                          ' - sandbox (opens a visual JS/Python playground)\n' +
+                     ' - sandbox (opens a visual JS/Python playground)\n' +
                      ' - file (opens a file picker to load text/code into the terminal)\n' +
                      ' - note [text] (saves a persistent text note)\n' +
                      ' - notes (lists all saved notes)\n' +
@@ -1582,7 +1580,7 @@
           else {
             const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
             let pass = "";
-            // Rejection sampling over crypto.getRandomValues so every char is equally likely (no modulo bias)
+
             const limit = 256 - (256 % chars.length);
             const buf = new Uint8Array(len * 2);
             while (pass.length < len) {
