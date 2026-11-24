@@ -1714,11 +1714,21 @@
         } else if (cmdLower === 'echo') {
           response = arg || '<Console> (nothing to echo)';
         } else if (cmdLower === 'credits') {
-          response = '<Console> Ideas for The Console and idea of The Console: QWERTY (also known as Mason, RTG elicit and Real Elicit)\n' +
-                     'Coder: Gemini (made ~400 and fired because of usage limits and inefficiency) DeepSeek (fixed all of Gemini\'s lines of code and made better code) Brave Search Assistant (corrected few Gemini lines and DeepSeek lines of code)\n' +
-                     'AI responses: Open ai/ChatGPT, Nemotron, Flint (via OpenRouter), and Ollama (local fallback)\n' +
-                     'Coding Software: Cloudflare (keeps api keys hidden and ai work!)\n' +
-                     'Built-in client side browser console (makes all the visuals and commands work)';
+          response = '<Console> Credits\n' +
+                     '\n' +
+                     'Ideas for The Console and idea of The Console: QWERTY (also known as Mason, RTG elicit and Real Elicit)\n' +
+                     '\n' +
+                     'Coders:\n' +
+                     ' - QWERTY (creator)\n' +
+                     ' - Gemini (made ~400 and fired because of usage limits and inefficiency)\n' +
+                     ' - DeepSeek (fixed all of Gemini\'s lines of code and made better code)\n' +
+                     ' - Brave Search Assistant (corrected few Gemini lines and DeepSeek lines of code)\n' +
+                     ' - Claude (fixed bugs, rebuilt the top monitor, wrote console-agent.js and patched the Worker)\n' +
+                     ' - Qwen (wrote no code yet)\n' +
+                     ' - Kimi AI (wrote no code yet)\n' +
+                     ' - ChatGPT (wrote no code yet)\n' +
+                     '\n' +
+                     'AI responses: Open ai/ChatGPT, Nemotron, Flint (via OpenRouter), and Ollama (local fallback)';
         } else if (cmdLower === 'lines') {
           resetInput(); input.disabled = true;
           writeLine('<Console> [Calculating dynamic line counts...]');
