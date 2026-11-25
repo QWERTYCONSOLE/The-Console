@@ -1,0 +1,17 @@
+# Deploy with:  npx wrangler deploy
+# (Durable Objects need this config + migration. Your secrets/variables stay as they are.)
+name = "console-ai-js"
+main = "worker.js"
+compatibility_date = "2025-11-01"
+keep_vars = true          # don't wipe variables you set in the dashboard
+
+[ai]
+binding = "AI"
+
+[[durable_objects.bindings]]
+name = "LIMITER"
+class_name = "Limiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Limiter"]   # SQLite-backed: the only kind the free plan allows

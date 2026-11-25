@@ -91,6 +91,30 @@
     }
 
     const WORKER_URL = 'https://console-ai-js.qwerty12345-1o1.workers.dev';
+
+    // Anonymous IDs sent with AI requests so the Worker can enforce daily limits and spam bans.
+    // (A random device ID kept in localStorage + a hash of basic browser traits. No message text is tied to them.)
+    function getDeviceId() {
+      try {
+        let id = localStorage.getItem('retro_did');
+        if (!id) {
+          id = (crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join(''));
+          localStorage.setItem('retro_did', id);
+        }
+        return id;
+      } catch (e) { return ''; }
+    }
+    async function computeFingerprint() {
+      try {
+        const raw = [navigator.userAgent, navigator.language, screen.width + 'x' + screen.height, screen.colorDepth,
+          Intl.DateTimeFormat().resolvedOptions().timeZone, navigator.hardwareConcurrency, navigator.deviceMemory,
+          navigator.maxTouchPoints, navigator.platform].join('|');
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+      } catch (e) { return ''; }
+    }
+    const clientIds = { did: getDeviceId(), fp: '' };
+    computeFingerprint().then(v => { clientIds.fp = v; });
     
     const SCRIPT_ORIGIN = (function () {
       try {
@@ -127,7 +151,7 @@
       'building': new Audio(SCRIPT_ORIGIN + "/Don't be racist, I Am A Building.mp3")
     };
     
-    Object.values(memeSounds).forEach(sound => { sound.preload = 'auto'; sound.volume = 0.6; });
+    Object.values(memeSounds).forEach(sound => { sound.preload = 'none'; sound.volume = 0.6; });
 
     function playError() {
       if (audioUnlocked) { errorSound.currentTime = 0; errorSound.play().catch(e => {}); }
@@ -211,6 +235,10 @@
         escaped = escaped.replace(/(#.*)/g, `<span style="color: ${codeColors.comment}; font-style: italic;">$1</span>`);
       }
       return escaped;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     function formatAIResponse(provider, text) {
@@ -496,54 +524,182 @@
       }
     }
 
+    const AGENT_URL = 'http://127.0.0.1:8765';
+
     async function runTop() {
       writeLine('<Console> [Starting System Monitor...]');
+      const fmtBytes = (n) => {
+        if (!isFinite(n)) return '?';
+        const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0;
+        while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+        return (i === 0 || n >= 100 ? Math.round(n) : n.toFixed(1)) + ' ' + u[i];
+      };
+      const fmtUptime = (s) => {
+        s = Math.floor(s); const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+        return (d ? d + 'd ' : '') + h + 'h ' + m + 'm';
+      };
+
       const topUI = document.createElement('div');
-      topUI.style.cssText = 'border: 1px solid #00ff66; padding: 15px; margin-top: 10px; background: #050505; max-width: 500px; font-family: monospace; text-align: left;';
-      topUI.innerHTML = `
-        <div style="margin-bottom: 15px;"><strong>CPU Usage</strong> <br><div class="bar-bg"><div id="cpu-bar" class="bar-fill"></div></div><span id="cpu-text">0%</span></div>
-        <div style="margin-bottom: 15px;"><strong>Memory Usage</strong> <br><div class="bar-bg"><div id="mem-bar" class="bar-fill"></div></div><span id="mem-text">0 MB</span></div>
-        <div style="margin-bottom: 15px;"><strong>Battery</strong> <br><div class="bar-bg"><div id="bat-bar" class="bar-fill" style="background:#ffd93d;"></div></div><span id="bat-text">Unknown</span></div>
-        <button id="stop-top-btn" style="background: transparent; color: #ff6b6b; border: 1px solid #ff6b6b; padding: 5px 10px; cursor: pointer; margin-top: 10px;">✖ Stop Monitoring</button>
-      `;
+      topUI.style.cssText = 'border: 1px solid #00ff66; padding: 15px; margin-top: 10px; background: #050505; max-width: 560px; font-family: monospace; text-align: left;';
+      const sourceEl = document.createElement('div');
+      sourceEl.style.cssText = 'color: #aaa; font-size: 12px; margin-bottom: 12px;';
+      const rowsEl = document.createElement('div');
+      const infoEl = document.createElement('pre');
+      infoEl.style.cssText = 'margin: 5px 0 0; white-space: pre-wrap; color: #aaa; font-size: 12px;';
+      const stopBtn = document.createElement('button');
+      stopBtn.textContent = '✖ Stop Monitoring';
+      stopBtn.style.cssText = 'background: transparent; color: #ff6b6b; border: 1px solid #ff6b6b; padding: 5px 10px; cursor: pointer; margin-top: 10px; font-family: monospace;';
+      topUI.append(sourceEl, rowsEl, infoEl, stopBtn);
       output.appendChild(topUI);
       scrollToBottom();
 
-      const cpuBar = document.getElementById('cpu-bar'), cpuText = document.getElementById('cpu-text');
-      const memBar = document.getElementById('mem-bar'), memText = document.getElementById('mem-text');
-      const batBar = document.getElementById('bat-bar'), batText = document.getElementById('bat-text');
-      const stopBtn = document.getElementById('stop-top-btn');
-
-      let lastTime = performance.now(), frames = 0;
-      const cpuInterval = setInterval(() => {
-        frames++;
-        const now = performance.now();
-        if (now - lastTime >= 1000) {
-          const cpu = Math.min(100, Math.round((frames / ((now - lastTime) / 1000)) * 10)); 
-          cpuBar.style.width = cpu + '%'; cpuText.textContent = cpu + '%';
-          frames = 0; lastTime = now;
+      // ---- meter rows (built with DOM calls only, so nothing gets re-parsed) ----
+      let rowMap = {};
+      function setRow(key, label, pct, text, color) {
+        let r = rowMap[key];
+        if (!r) {
+          const el = document.createElement('div'); el.style.marginBottom = '12px';
+          const lab = document.createElement('strong'); lab.textContent = label;
+          const bg = document.createElement('div'); bg.className = 'bar-bg';
+          const fill = document.createElement('div'); fill.className = 'bar-fill'; if (color) fill.style.background = color;
+          bg.appendChild(fill);
+          const t = document.createElement('span');
+          el.append(lab, document.createElement('br'), bg, t);
+          rowsEl.appendChild(el);
+          r = rowMap[key] = { el, fill, t };
         }
-        if (performance.memory) {
-          const used = Math.round(performance.memory.usedJSHeapSize / (1024 * 1024));
-          const total = Math.round(performance.memory.jsHeapSizeLimit / (1024 * 1024));
-          const percent = Math.round((used / total) * 100);
-          memBar.style.width = percent + '%'; memText.textContent = `${used} MB / ${total} MB (${percent}%)`;
-        } else memText.textContent = "Not supported in this browser";
-      }, 1000);
-
-      if (navigator.getBattery) {
-        navigator.getBattery().then(battery => {
-          const updateBat = () => {
-            const level = Math.round(battery.level * 100);
-            batBar.style.width = level + '%'; batText.textContent = `${level}% ${battery.charging ? '(Charging)' : ''}`;
-          };
-          updateBat();
-          battery.addEventListener('levelchange', updateBat);
-          battery.addEventListener('chargingchange', updateBat);
-        });
+        r.fill.style.width = Math.max(0, Math.min(100, pct || 0)) + '%';
+        r.t.textContent = text;
+        return r;
+      }
+      function setCores(r, cores) {
+        if (!r.coresEl) {
+          r.coresEl = document.createElement('div');
+          r.coresEl.style.cssText = 'display: flex; gap: 2px; margin-top: 4px;';
+          r.el.appendChild(r.coresEl);
+        }
+        while (r.coresEl.children.length < cores.length) {
+          const b = document.createElement('div'); b.style.cssText = 'flex: 1; height: 24px; background: #111; position: relative;';
+          const f = document.createElement('div'); f.style.cssText = 'position: absolute; bottom: 0; left: 0; right: 0; background: #00ff66;';
+          b.appendChild(f); r.coresEl.appendChild(b);
+        }
+        cores.forEach((p, i) => { r.coresEl.children[i].firstChild.style.height = p + '%'; });
       }
 
-      stopBtn.onclick = () => { clearInterval(cpuInterval); topUI.remove(); writeLine('<Console> [System Monitor Stopped]'); maintainFocus(); };
+      // ---- browser-side sensors ----
+      let lagSum = 0, frames = 0, rafId = 0;
+      let lastBeat = performance.now(), windowStart = lastBeat;
+      // Main-thread load: how late a 50ms timer fires. Blocked thread = late timer.
+      const beat = setInterval(() => {
+        const n = performance.now();
+        if (!document.hidden) lagSum += Math.max(0, n - lastBeat - 50);
+        lastBeat = n;
+      }, 50);
+      const raf = () => { frames++; rafId = requestAnimationFrame(raf); };
+      rafId = requestAnimationFrame(raf);
+
+      let pressureState = null, pressureObs = null, pressureSupported = false;
+      try {
+        if ('PressureObserver' in window && (PressureObserver.knownSources || []).includes('cpu')) {
+          pressureObs = new PressureObserver((recs) => { pressureState = recs[recs.length - 1].state; });
+          await pressureObs.observe('cpu', { sampleInterval: 1000 });
+          pressureSupported = true;
+        }
+      } catch (e) { pressureObs = null; pressureSupported = false; }
+
+      let battery = null;
+      if (navigator.getBattery) navigator.getBattery().then(b => { battery = b; }).catch(() => {});
+
+      // ---- optional local agent (real system stats) ----
+      let agentWait = 0; // ticks until we probe for the agent again
+      async function probeAgent() {
+        const c = new AbortController(); const id = setTimeout(() => c.abort(), 900);
+        try {
+          const r = await fetch(AGENT_URL + '/stats', { signal: c.signal, cache: 'no-store' });
+          return r.ok ? await r.json() : null;
+        } catch (e) { return null; } finally { clearTimeout(id); }
+      }
+
+      let lastMode = null, stopped = false;
+      function stop(manual) {
+        if (stopped) return; stopped = true;
+        clearInterval(beat); clearInterval(tickId); cancelAnimationFrame(rafId);
+        try { if (pressureObs) pressureObs.disconnect(); } catch (e) {}
+        if (topUI.isConnected) topUI.remove();
+        if (manual) { writeLine('<Console> [System Monitor Stopped]'); maintainFocus(); }
+      }
+      stopBtn.onclick = () => stop(true);
+
+      const tick = async () => {
+        if (stopped) return;
+        if (!topUI.isConnected) return stop(false); // e.g. the terminal was cleared
+        const now = performance.now();
+        const elapsed = Math.max(1, now - windowStart); windowStart = now;
+        const hidden = document.hidden;
+        const pageBusy = Math.min(100, Math.round(lagSum / elapsed * 100));
+        const fps = Math.round(frames / (elapsed / 1000));
+        lagSum = 0; frames = 0;
+
+        let agent = null;
+        if (agentWait <= 0) { agent = await probeAgent(); if (!agent) agentWait = 10; } else agentWait--;
+        if (agent) agentWait = 0; // keep polling every tick while it is up
+        if (stopped) return;
+
+        const mode = agent ? 'agent' : 'browser';
+        if (mode !== lastMode) { rowsEl.textContent = ''; rowMap = {}; lastMode = mode; }
+        sourceEl.textContent = agent
+          ? 'Source: local console-agent (real system stats) + browser sensors'
+          : 'Source: browser only (estimates). For real Task Manager numbers, run console-agent.js on your PC.';
+
+        const info = [];
+        if (agent) {
+          const c = agent.cpu, m = agent.mem;
+          const rc = setRow('cpu', 'CPU', c.percent, c.percent + '%  ' + c.count + ' threads  ' + c.model);
+          setCores(rc, c.cores);
+          setRow('mem', 'Memory', Math.round(m.used / m.total * 100), fmtBytes(m.used) + ' / ' + fmtBytes(m.total) + ' (' + Math.round(m.used / m.total * 100) + '%)');
+          (agent.disks || []).forEach(d => {
+            const pct = Math.round(d.used / d.total * 100);
+            setRow('disk:' + d.mount, 'Disk ' + d.mount, pct, fmtBytes(d.used) + ' / ' + fmtBytes(d.total) + ' used (' + pct + '%)', '#4da6ff');
+          });
+          info.push('System uptime: ' + fmtUptime(agent.uptime) + '  (' + agent.platform + ')');
+        } else {
+          if (pressureSupported) {
+            const map = { nominal: 20, fair: 50, serious: 80, critical: 100 };
+            setRow('cpu', 'System CPU pressure', map[pressureState] || 0, pressureState ? pressureState.toUpperCase() + '  (coarse: nominal / fair / serious / critical)' : 'waiting for first sample...');
+          } else {
+            setRow('cpu', 'System CPU', 0, 'Unavailable in this browser. Run console-agent.js for real CPU %.');
+          }
+          info.push('CPU threads: ' + (navigator.hardwareConcurrency || '?') + (navigator.deviceMemory ? '   RAM (approx, capped by browser): ' + navigator.deviceMemory + ' GB' : ''));
+        }
+
+        // Browser section (always shown)
+        setRow('tab', 'This tab: main-thread load', hidden ? 0 : pageBusy, hidden ? 'paused (tab hidden)' : pageBusy + '%', '#ffd93d');
+        setRow('fps', 'Frame rate', hidden ? 0 : Math.min(100, fps / 60 * 100), hidden ? 'paused (tab hidden)' : fps + ' FPS');
+        if (performance.memory) {
+          const used = performance.memory.usedJSHeapSize, lim = performance.memory.jsHeapSizeLimit;
+          setRow('heap', 'This tab: JS memory', Math.round(used / lim * 100), fmtBytes(used) + ' / ' + fmtBytes(lim) + ' limit');
+        }
+        try {
+          if (navigator.storage && navigator.storage.estimate) {
+            const est = await navigator.storage.estimate();
+            let ls = 0;
+            try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); ls += (k.length + (localStorage.getItem(k) || '').length) * 2; } } catch (e) {}
+            const pct = est.quota ? est.usage / est.quota * 100 : 0;
+            setRow('storage', 'This site: browser storage', pct, fmtBytes(est.usage || 0) + ' of ' + fmtBytes(est.quota || 0) + ' quota (' + pct.toFixed(2) + '%)  localStorage: ' + fmtBytes(ls), '#4da6ff');
+          }
+        } catch (e) {}
+        if (battery) {
+          const lv = Math.round(battery.level * 100);
+          setRow('bat', 'Battery', lv, lv + '%' + (battery.charging ? ' (Charging)' : ''), '#ffd93d');
+        }
+
+        const conn = navigator.connection;
+        info.push('Network: ' + (navigator.onLine ? 'online' : 'OFFLINE') + (conn ? '  ' + (conn.effectiveType || '?') + ', ~' + (conn.downlink != null ? conn.downlink : '?') + ' Mbps, RTT ' + (conn.rtt != null ? conn.rtt : '?') + ' ms' + (conn.saveData ? ', data saver on' : '') : ''));
+        info.push('Console session: ' + fmtUptime(performance.now() / 1000));
+        infoEl.textContent = info.join('\n');
+      };
+      const tickId = setInterval(tick, 1000);
+      tick();
     }
 
     function openSandbox() {
@@ -604,9 +760,9 @@
             py.setStderr({ batched: (s) => { pyOutput += '[stderr] ' + s + '\n'; } });
             let result = py.runPython(code);
             if (result !== undefined && result !== null) pyOutput += '=> ' + String(result) + '\n';
-            doc.body.innerHTML += '<pre style="margin:0; padding: 10px;">' + pyOutput + '</pre>';
+            doc.body.innerHTML += '<pre style="margin:0; padding: 10px;">' + escapeHtml(pyOutput) + '</pre>';
           } catch (err) {
-            doc.body.innerHTML += '<pre style="margin:0; padding: 10px; color: #ff6b6b;">[Python Error]: ' + err.message + '</pre>';
+            doc.body.innerHTML += '<pre style="margin:0; padding: 10px; color: #ff6b6b;">[Python Error]: ' + escapeHtml(err.message) + '</pre>';
           } finally {
             input.disabled = false; maintainFocus();
           }
@@ -758,35 +914,41 @@
           writeLine(`Worker State: ${data.online ? 'online' : 'unknown'} (HTTP ${res.status})`);
           writeLine(`OpenAI Key: ${data.providers.openai}`);
           writeLine(`OpenRouter Key: ${data.providers.openrouter}`);
+          if (data.providers.groq) writeLine(`Groq Key: ${data.providers.groq}`);
+          if (data.providers.gemini) writeLine(`Gemini Key: ${data.providers.gemini}`);
         } else { playError(); writeLine(`Worker Error: HTTP ${res.status}`); }
       } catch (err) { playError(); writeLine(`Worker Error: Could not reach ${WORKER_URL}`); }
       writeLine('\n<Console> [Info Complete]');
       scrollToBottom();
     }
 
-    async function fetchAIResponse(promptText, isSequential = false) {
+    async function fetchAIResponse(promptText, isSequential = false, useHistory = true) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 25000); 
-        chatHistory.push({ role: 'user', content: promptText });
+        const msgs = useHistory ? chatHistory : [];
+        msgs.push({ role: 'user', content: promptText });
         const response = await fetch(WORKER_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
-          body: JSON.stringify({ prompt: promptText, history: chatHistory, isSequential: isSequential }) 
+          body: JSON.stringify({ prompt: promptText, history: msgs, isSequential: isSequential, did: clientIds.did, fp: clientIds.fp, token: (function () { try { return localStorage.getItem('retro_creator_token') || ''; } catch (e) { return ''; } })() }) 
         });
         clearTimeout(timeoutId);
         const data = await response.json();
         
         if (response.ok && data.success) {
-          if (data.responses && data.responses.length > 0) chatHistory.push({ role: 'assistant', content: data.responses[0].text });
-          return { success: true, responses: data.responses, errors: data.errors, triggerMatrix: data.triggerMatrix };
+          if (useHistory && data.responses && data.responses.length > 0) chatHistory.push({ role: 'assistant', content: data.responses[0].text });
+          if (data.creatorToken) { try { localStorage.setItem('retro_creator_token', data.creatorToken); } catch (e) {} }
+          return { success: true, responses: data.responses, errors: data.errors, triggerMatrix: data.triggerMatrix, remaining: data.remaining };
         } else {
           playError();
+          if (useHistory) chatHistory.pop();
           return { success: false, error: data.error || "Unknown worker error" };
         }
       } catch (err) {
         playError();
+        if (useHistory) chatHistory.pop();
         return { success: false, error: "Connection error: Could not reach Cloudflare Worker." };
       }
     }
@@ -828,6 +990,19 @@
 
     function maintainFocus() { if (!input.disabled) input.focus(); }
     setTimeout(maintainFocus, 100);
+
+    function runWhereami() {
+      writeLine('<Console> [Requesting location... allow the browser prompt]');
+      scrollToBottom();
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          writeLine('<Console> [Location] Lat ' + pos.coords.latitude.toFixed(5) + ', Lon ' + pos.coords.longitude.toFixed(5) + ' (accuracy ~' + Math.round(pos.coords.accuracy) + ' m)');
+          scrollToBottom(); maintainFocus();
+        },
+        (err) => { playError(); writeLine('<Console> [Location Error]: ' + err.message); scrollToBottom(); maintainFocus(); },
+        { timeout: 15000 }
+      );
+    }
 
     function requirePrivacyConsent(subject, onAgree) {
       if (privacyGateActive) return;
@@ -877,7 +1052,7 @@
           'linux', 'exit', 'sandbox', 'file', 'note', 'notes', 'wipe', 'wipehistory', 'factoryreset',
           'picker', 'theme', 'rainbow', 'colorblind', 'ascii', 'flip', 
           'roll', 'echo', 'lines', 'chat', 'js?', 'py?', 'meme', 'play', 'ttt', 
-          'time', 'c?', 'cpp?', 'rust?', 'cs?', 'edit', 'doom', 'end'
+          'time', 'c?', 'cpp?', 'rust?', 'cs?', 'java?', 'go?', 'edit', 'doom', 'end'
         ];
         const match = allCommands.find(cmd => cmd.startsWith(currentText));
         if (match) { input.value = match + ' '; autoResize(); }
@@ -965,6 +1140,7 @@
                 line.style.color = '#ff6b6b';
               });
             }
+            if (cloudResult.remaining != null) writeLine('<Console> [AI messages left today: ' + cloudResult.remaining + ']');
             if (cloudResult.triggerMatrix && !matrixInterval) toggleMatrix();
           } else if (ollamaEnabled) {
             writeLine('<Console> [Chat Error]: ' + (cloudResult.error || 'cloud failed') + ' — trying local Ollama...');
@@ -989,7 +1165,7 @@
             if (evalResult !== undefined) {
               const line = document.createElement('div');
               line.style.whiteSpace = 'pre-wrap'; line.style.textAlign = 'left'; 
-              line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [Result]:</span><br>` + highlightCode(String(evalResult), 'js');
+              line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [Result]:</span><br>` + escapeHtml(String(evalResult));
               output.appendChild(line);
             } else writeLine('<Console> [Result]: Executed successfully (no return value)');
           } catch (err) { playError(); writeLine('<Console> [JS Error]: ' + err.message); }
@@ -1009,7 +1185,7 @@
             if (result !== undefined && result !== null) pyOutput += String(result);
             const line = document.createElement('div');
             line.style.whiteSpace = 'pre-wrap'; line.style.textAlign = 'left'; 
-            line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [Result]:</span><br>` + highlightCode(pyOutput, 'py');
+            line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [Result]:</span><br>` + escapeHtml(pyOutput);
             output.appendChild(line);
           } catch (err) { playError(); writeLine('<Console> [Python Error]: ' + err.message); }
           input.disabled = false; scrollToBottom(); maintainFocus(); return;
@@ -1053,7 +1229,7 @@
             if (data.success) {
               const line = document.createElement('div');
               line.style.whiteSpace = 'pre-wrap'; line.style.textAlign = 'left';
-              line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [${langName.toUpperCase()} Result]:</span><br>` + highlightCode(data.output, langName);
+              line.innerHTML = `<span style="color: ${codeColors.text};">&lt;Console&gt; [${langName.toUpperCase()} Result]:</span><br>` + escapeHtml(data.output);
               output.appendChild(line);
             } else {
               playError();
@@ -1070,7 +1246,7 @@
           let promptText = fullInput.substring(1, fullInput.length - 1).trim();
           writeLine('<Console> [Firing all cloud AIs in parallel...]');
           resetInput(); input.disabled = true; scrollToBottom();
-          let cloudResult = await fetchAIResponse(promptText, false);
+          let cloudResult = await fetchAIResponse(promptText, false, false);
           
           if (cloudResult.success && cloudResult.responses && cloudResult.responses.length > 0) {
             if (currentMode === 'single') {
@@ -1089,6 +1265,7 @@
                 line.style.color = '#ff6b6b';
               });
             }
+            if (cloudResult.remaining != null) writeLine('<Console> [AI messages left today: ' + cloudResult.remaining + ']');
             if (cloudResult.triggerMatrix && !matrixInterval) toggleMatrix();
           } else if (ollamaEnabled) {
             writeLine('<Console> [All cloud APIs failed. Trying local Ollama fallback...]');
@@ -1132,7 +1309,7 @@
             
             await new Promise((resolve) => {
               const start = Date.now();
-              const tick = () => { if (!commandBusy || Date.now() - start > 30000) return resolve(); setTimeout(tick, 100); };
+              const tick = () => { if (!input.disabled || Date.now() - start > 30000) return resolve(); setTimeout(tick, 100); };
               setTimeout(tick, 100);
             });
             
@@ -1160,7 +1337,7 @@
                      ' - define [word] (looks up the definition of a word)\n' +
                      ' - calc [math] (e.g. "calc 5 * 5")\n' +
                      ' - password [length] (generates a secure random password)\n' +
-                     ' - top (opens live system monitor)\n' +
+                     ' - top (live monitor: CPU, memory, disk, FPS, network, battery. Run console-agent.js for real system numbers)\n' +
                      ' - matrix (toggles falling code background)\n' +
                      ' - save (downloads terminal history to a text file)\n' +
                      ' - copy [text] (copies text to clipboard - SITE EXCLUSIVE)\n' +
@@ -1174,10 +1351,9 @@
                      ' - mode single / mode multi (toggle AI response behavior)\n' +
                      ' - ollama on / ollama off (toggle local CPU AI fallback)\n' +
                      ' - chat (starts a persistent conversation with AI memory)\n' +
-                     ' - terminal (spawns another terminal inside this one)\n' +
-                     ' - linux (boots a tiny Linux OS inside a canvas window)\n' +
-                     ' - exit (closes the Linux emulator window)\n' +
-                     ' - sandbox (opens a visual JS/Python playground)\n' +
+                     ' - terminal (currently a no-op: the console is already open)\n' +
+                     ' - linux (opens a Linux emulator in a new tab)\n' +
+                                          ' - sandbox (opens a visual JS/Python playground)\n' +
                      ' - file (opens a file picker to load text/code into the terminal)\n' +
                      ' - note [text] (saves a persistent text note)\n' +
                      ' - notes (lists all saved notes)\n' +
@@ -1198,12 +1374,16 @@
                      ' - ttt [difficulty] (starts a game of Tic-Tac-Toe. Difficulties: noob, easy, medium, hard, insane, master)\n' +
                      ' - ttt ag [width] [height] [win] [slip%] [x|o] (Adjustable game. e.g., "ttt ag 5 9 4 5 x")\n' +
                      ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
+                     '   AI limits: 10 messages per day per AI, 4000 characters per message.\n' +
+                     '   Sending the exact same message twice gets you blocked from the AI until Monday.\n' +
                      ' - JS? [code] (run live JavaScript directly in browser)\n' +
                      ' - PY? [code] (run live Python via Pyodide)\n' +
                      ' - RUST? [code] (compile & run Rust via Cloudflare)\n' +
                      ' - C? [code] (compile & run C via Cloudflare)\n' +
                      ' - CPP? [code] (compile & run C++ via Cloudflare)\n' +
                      ' - CS? [code] (compile & run C# via Cloudflare)\n' +
+                     ' - JAVA? [code] (compile & run Java via Cloudflare)\n' +
+                     ' - GO? [code] (compile & run Go via Cloudflare)\n' +
                      ' - edit [lang] (opens a multiline code editor UI)\n' +
                      ' - doom (opens DOOM 1993 in a new tab)\n' +
                      ' - time (shows local time; "time UTC+5" or just "UTC+5" / "-5" for an offset)\n' +
@@ -1220,6 +1400,8 @@
               const w = parseInt(args[0]), h = parseInt(args[1]), win = parseInt(args[2]), slip = parseFloat(args[3]) / 100, p = args[4].toLowerCase();
               if (isNaN(w) || isNaN(h) || isNaN(win) || isNaN(slip) || (p !== 'x' && p !== 'o')) response = '<Console> [Custom Game] Invalid values. Make sure width/height/win are numbers, slip is a number, and player is x or o.';
               else if (w < 2 || h < 2 || win < 2) response = '<Console> [Custom Game] Board size and win length must be at least 2.';
+              else if (w > 20 || h > 20) response = '<Console> [Custom Game] Max board size is 20x20.';
+              else if (slip < 0 || slip > 1) response = '<Console> [Custom Game] Slip % must be between 0 and 100.';
               else if (win > w && win > h) response = '<Console> [Custom Game] Win length cannot be larger than both width and height.';
               else {
                 customGameState = { width: w, height: h, winLen: win, slipChance: slip, player: p.toUpperCase(), aiPlayer: p === 'x' ? 'O' : 'X', board: Array(w * h).fill(null) };
@@ -1287,9 +1469,9 @@
         } else if (cmdLower === 'whereami') {
           if (!navigator.geolocation) { playError(); response = '<Console> Geolocation is not supported by this browser.'; } 
           else {
-            if (isTesting) { input.value = 'whereami'; autoResize(); input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); } 
+            if (isTesting) { writeLine('<Console> [whereami skipped during test tour]'); resetInput(); } 
             else {
-              requirePrivacyConsent('whereami', () => { input.value = 'whereami'; autoResize(); input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+              resetInput(); requirePrivacyConsent('whereami', runWhereami);
             }
             return;
           }
@@ -1422,12 +1604,22 @@
             } catch (e) { playError(); response = '<Console> [Calc Error]: Invalid math expression.'; }
           }
         } else if (cmdLower === 'password') {
-          const len = parseInt(arg) || 16;
-          if (len > 128) { playError(); response = '<Console> Max password length is 128.'; } 
+          let len = parseInt(arg);
+          if (isNaN(len)) len = 16;
+          if (len < 1) len = 16;
+          if (len > 128) { playError(); response = '<Console> Max password length is 128.'; }
           else {
             const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
             let pass = "";
-            for (let i = 0; i < len; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+            // Rejection sampling over crypto.getRandomValues so every char is equally likely (no modulo bias)
+            const limit = 256 - (256 % chars.length);
+            const buf = new Uint8Array(len * 2);
+            while (pass.length < len) {
+              crypto.getRandomValues(buf);
+              for (let i = 0; i < buf.length && pass.length < len; i++) {
+                if (buf[i] < limit) pass += chars.charAt(buf[i] % chars.length);
+              }
+            }
             response = `<Console> [Password]: ${pass}`;
           }
         } else if (cmdLower === 'weather') {
@@ -1462,10 +1654,10 @@
         } else if (cmdLower === 'file') {
           openFilePicker(); resetInput(); return;
         } else if (cmdLower === 'info') {
-          resetInput(); input.disabled = true;
+          resetInput();
           try {
-            if (isTesting) { await runInfo(); input.disabled = false; maintainFocus(); } 
-            else { requirePrivacyConsent('info', async () => { await runInfo(); input.disabled = false; maintainFocus(); }); }
+            if (isTesting) { input.disabled = true; try { await runInfo(); } finally { input.disabled = false; maintainFocus(); } } 
+            else { requirePrivacyConsent('info', async () => { input.disabled = true; try { await runInfo(); } finally { input.disabled = false; maintainFocus(); } }); }
           } catch (e) { input.disabled = false; maintainFocus(); }
           return;
         } else if (cmdLower === 'linux') {
@@ -1509,7 +1701,10 @@
           } catch (e) { playError(); response = '<Console> [Error]: Could not wipe history.'; }
         } else if (cmdLower === 'factoryreset') {
           try {
+            const keepDid = localStorage.getItem('retro_did'), keepTok = localStorage.getItem('retro_creator_token');
             localStorage.clear();
+            if (keepDid) localStorage.setItem('retro_did', keepDid);
+            if (keepTok) localStorage.setItem('retro_creator_token', keepTok);
             writeLine('<Console> [FACTORY RESET] All local storage data cleared. Reloading...');
             setTimeout(() => location.reload(), 1500);
             return;
@@ -1551,11 +1746,21 @@
         } else if (cmdLower === 'echo') {
           response = arg || '<Console> (nothing to echo)';
         } else if (cmdLower === 'credits') {
-          response = '<Console> Ideas for The Console and idea of The Console: QWERTY (also known as Mason, RTG elicit and Real Elicit)\n' +
-                     'Coder: Gemini (made ~400 and fired because of usage limits and inefficiency) DeepSeek (fixed all of Gemini\'s lines of code and made better code) Brave Search Assistant (corrected few Gemini lines and DeepSeek lines of code)\n' +
-                     'AI responses: Open ai/ChatGPT, Nemotron, Flint (via OpenRouter), and Ollama (local fallback)\n' +
-                     'Coding Software: Cloudflare (keeps api keys hidden and ai work!)\n' +
-                     'Built-in client side browser console (makes all the visuals and commands work)';
+          response = '<Console> Credits\n' +
+                     '\n' +
+                     'Ideas for The Console and idea of The Console: QWERTY (also known as Mason, RTG elicit and Real Elicit)\n' +
+                     '\n' +
+                     'Coders:\n' +
+                     ' - QWERTY (creator)\n' +
+                     ' - Gemini (made ~400 and fired because of usage limits and inefficiency)\n' +
+                     ' - DeepSeek (fixed all of Gemini\'s lines of code and made better code)\n' +
+                     ' - Brave Search Assistant (corrected few Gemini lines and DeepSeek lines of code)\n' +
+                     ' - Claude (fixed bugs, rebuilt the top monitor, wrote console-agent.js and patched the Worker)\n' +
+                     ' - Qwen (wrote no code yet)\n' +
+                     ' - Kimi AI (wrote no code yet)\n' +
+                     ' - ChatGPT (wrote no code yet)\n' +
+                     '\n' +
+                     'AI responses: Open ai/ChatGPT, Nemotron, Flint (via OpenRouter), and Ollama (local fallback)';
         } else if (cmdLower === 'lines') {
           resetInput(); input.disabled = true;
           writeLine('<Console> [Calculating dynamic line counts...]');
@@ -1615,9 +1820,11 @@
           textPicker.oninput = (e) => { container.style.color = e.target.value; };
           bgPicker.oninput = (e) => { container.style.backgroundColor = e.target.value; };
 
-          pickerContainer.innerHTML = '<span>Text: </span>';
+          const textLabel = document.createElement('span'); textLabel.textContent = 'Text: ';
+          const bgLabel = document.createElement('span'); bgLabel.style.marginLeft = '10px'; bgLabel.textContent = ' Background: ';
+          pickerContainer.appendChild(textLabel);
           pickerContainer.appendChild(textPicker);
-          pickerContainer.innerHTML += ' <span style="margin-left:10px;">Background: </span>';
+          pickerContainer.appendChild(bgLabel);
           pickerContainer.appendChild(bgPicker);
           
           output.appendChild(pickerContainer);
