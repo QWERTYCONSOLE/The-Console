@@ -91,6 +91,30 @@
     }
 
     const WORKER_URL = 'https://console-ai-js.qwerty12345-1o1.workers.dev';
+
+    // Anonymous IDs sent with AI requests so the Worker can enforce daily limits and spam bans.
+    // (A random device ID kept in localStorage + a hash of basic browser traits. No message text is tied to them.)
+    function getDeviceId() {
+      try {
+        let id = localStorage.getItem('retro_did');
+        if (!id) {
+          id = (crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join(''));
+          localStorage.setItem('retro_did', id);
+        }
+        return id;
+      } catch (e) { return ''; }
+    }
+    async function computeFingerprint() {
+      try {
+        const raw = [navigator.userAgent, navigator.language, screen.width + 'x' + screen.height, screen.colorDepth,
+          Intl.DateTimeFormat().resolvedOptions().timeZone, navigator.hardwareConcurrency, navigator.deviceMemory,
+          navigator.maxTouchPoints, navigator.platform].join('|');
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+      } catch (e) { return ''; }
+    }
+    const clientIds = { did: getDeviceId(), fp: '' };
+    computeFingerprint().then(v => { clientIds.fp = v; });
     
     const SCRIPT_ORIGIN = (function () {
       try {
@@ -906,14 +930,15 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
-          body: JSON.stringify({ prompt: promptText, history: msgs, isSequential: isSequential }) 
+          body: JSON.stringify({ prompt: promptText, history: msgs, isSequential: isSequential, did: clientIds.did, fp: clientIds.fp, token: (function () { try { return localStorage.getItem('retro_creator_token') || ''; } catch (e) { return ''; } })() }) 
         });
         clearTimeout(timeoutId);
         const data = await response.json();
         
         if (response.ok && data.success) {
           if (useHistory && data.responses && data.responses.length > 0) chatHistory.push({ role: 'assistant', content: data.responses[0].text });
-          return { success: true, responses: data.responses, errors: data.errors, triggerMatrix: data.triggerMatrix };
+          if (data.creatorToken) { try { localStorage.setItem('retro_creator_token', data.creatorToken); } catch (e) {} }
+          return { success: true, responses: data.responses, errors: data.errors, triggerMatrix: data.triggerMatrix, remaining: data.remaining };
         } else {
           playError();
           if (useHistory) chatHistory.pop();
@@ -1113,6 +1138,7 @@
                 line.style.color = '#ff6b6b';
               });
             }
+            if (cloudResult.remaining != null) writeLine('<Console> [AI messages left today: ' + cloudResult.remaining + ']');
             if (cloudResult.triggerMatrix && !matrixInterval) toggleMatrix();
           } else if (ollamaEnabled) {
             writeLine('<Console> [Chat Error]: ' + (cloudResult.error || 'cloud failed') + ' — trying local Ollama...');
@@ -1237,6 +1263,7 @@
                 line.style.color = '#ff6b6b';
               });
             }
+            if (cloudResult.remaining != null) writeLine('<Console> [AI messages left today: ' + cloudResult.remaining + ']');
             if (cloudResult.triggerMatrix && !matrixInterval) toggleMatrix();
           } else if (ollamaEnabled) {
             writeLine('<Console> [All cloud APIs failed. Trying local Ollama fallback...]');
@@ -1345,6 +1372,8 @@
                      ' - ttt [difficulty] (starts a game of Tic-Tac-Toe. Difficulties: noob, easy, medium, hard, insane, master)\n' +
                      ' - ttt ag [width] [height] [win] [slip%] [x|o] (Adjustable game. e.g., "ttt ag 5 9 4 5 x")\n' +
                      ' - *[prompt]* (chat with AI by wrapping prompt in asterisks)\n' +
+                     '   AI limits: 10 messages per day per AI, 4000 characters per message.\n' +
+                     '   Sending the same message twice within 5 minutes gets you blocked from the AI until Monday.\n' +
                      ' - JS? [code] (run live JavaScript directly in browser)\n' +
                      ' - PY? [code] (run live Python via Pyodide)\n' +
                      ' - RUST? [code] (compile & run Rust via Cloudflare)\n' +
@@ -1670,7 +1699,10 @@
           } catch (e) { playError(); response = '<Console> [Error]: Could not wipe history.'; }
         } else if (cmdLower === 'factoryreset') {
           try {
+            const keepDid = localStorage.getItem('retro_did'), keepTok = localStorage.getItem('retro_creator_token');
             localStorage.clear();
+            if (keepDid) localStorage.setItem('retro_did', keepDid);
+            if (keepTok) localStorage.setItem('retro_creator_token', keepTok);
             writeLine('<Console> [FACTORY RESET] All local storage data cleared. Reloading...');
             setTimeout(() => location.reload(), 1500);
             return;
